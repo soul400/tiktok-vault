@@ -1130,100 +1130,129 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
           multiplier = 1.0;
           durationSeconds = 0;
         } else {
-          // 2. Acquisition Detection - Analyze displayContent, keys, text pieces, and awardReason
+          // 2. Acquisition Detection - Precise clean text & explicit card object checks
           actionState = 'ACQUIRED';
 
           const notice = data.awardCardNotice || data.cardObtainGuide || {};
-          const textBlob = (
-            String(notice.displayContent?.key || '') + ' ' +
-            String(notice.displayContent?.defaultPattern || '') + ' ' +
-            String(data.common?.displayText?.key || '') + ' ' +
-            String(data.common?.displayText?.defaultPattern || '') + ' ' +
-            String(data.common?.describe || '') + ' ' +
-            JSON.stringify(notice)
-          ).toLowerCase();
 
+          // Check direct sub-objects on notice or data first
           if (
-            textBlob.includes('smoke') ||
-            textBlob.includes('mist') ||
-            textBlob.includes('fog') ||
-            textBlob.includes('ضباب') ||
-            textBlob.includes('حجب') ||
-            textBlob.includes('الضباب')
+            data.criticalStrikeCard ||
+            data.vaultGloveCard ||
+            notice.criticalStrikeCard ||
+            notice.vaultGloveCard
           ) {
-            cardCode = 'MIST';
-            cardName = 'ضباب المعركة';
-            multiplier = 1.0;
-            durationSeconds = 30;
-          } else if (
-            textBlob.includes('top3') ||
-            textBlob.includes('boost3') ||
-            textBlob.includes('boost_x3') ||
-            textBlob.includes('3x') ||
-            textBlob.includes('x3') ||
-            textBlob.includes('مضاعف 3') ||
-            textBlob.includes('مضاعفة 3') ||
-            textBlob.includes('3 أضعاف')
-          ) {
-            cardCode = 'BOOST_X3';
-            cardName = 'مضاعف النقاط x3';
-            multiplier = 3.0;
-            durationSeconds = 30;
-          } else if (
-            textBlob.includes('top2') ||
-            textBlob.includes('boost2') ||
-            textBlob.includes('boost_x2') ||
-            textBlob.includes('2x') ||
-            textBlob.includes('x2') ||
-            textBlob.includes('مضاعف 2') ||
-            textBlob.includes('مضاعفة 2') ||
-            textBlob.includes('ضعفين')
-          ) {
-            cardCode = 'BOOST_X2';
-            cardName = 'مضاعف النقاط x2';
-            multiplier = 2.0;
-            durationSeconds = 30;
-          } else if (
-            textBlob.includes('extratime') ||
-            textBlob.includes('extra_time') ||
-            textBlob.includes('time') ||
-            textBlob.includes('وقت') ||
-            textBlob.includes('إضافي') ||
-            textBlob.includes('اضافي') ||
-            textBlob.includes('اضافة وقت')
-          ) {
-            cardCode = 'EXTRA_TIME';
-            cardName = 'وقت إضافي';
-            multiplier = 1.0;
-            durationSeconds = 15;
-          } else if (
-            textBlob.includes('potion') ||
-            textBlob.includes('thunder') ||
-            textBlob.includes('lightning') ||
-            textBlob.includes('رعد') ||
-            textBlob.includes('صاعقة') ||
-            textBlob.includes('حماس')
-          ) {
-            cardCode = 'THUNDER';
-            cardName = 'صاعقة الرعد';
-            multiplier = 1.0;
-            durationSeconds = 0;
-          } else if (
-            textBlob.includes('guide') ||
-            textBlob.includes('strategy') ||
-            textBlob.includes('دليل') ||
-            textBlob.includes('توجيه')
-          ) {
-            cardCode = 'MATCH_GUIDE';
-            cardName = 'دليل المعركة';
-            multiplier = 1.0;
-            durationSeconds = 0;
-          } else {
-            // Default to GLOVES
             cardCode = 'GLOVES';
             cardName = 'قفازات المعركة';
             multiplier = 5.0;
             durationSeconds = 30;
+          } else if (data.smokeCard || notice.smokeCard) {
+            cardCode = 'MIST';
+            cardName = 'ضباب المعركة';
+            multiplier = 1.0;
+            durationSeconds = 30;
+          } else if (data.extraTimeCard || notice.extraTimeCard) {
+            cardCode = 'EXTRA_TIME';
+            cardName = 'وقت إضافي';
+            multiplier = 1.0;
+            durationSeconds = 15;
+          } else if (data.top3Card || notice.top3Card) {
+            cardCode = 'BOOST_X3';
+            cardName = 'مضاعف النقاط x3';
+            multiplier = 3.0;
+            durationSeconds = 30;
+          } else if (data.top2Card || notice.top2Card) {
+            cardCode = 'BOOST_X2';
+            cardName = 'مضاعف النقاط x2';
+            multiplier = 2.0;
+            durationSeconds = 30;
+          } else {
+            // Clean text analysis - only human-readable text (NEVER stringify raw JSON which contains image URLs like @3x.png or usernames)
+            const cleanText = [
+              notice.displayContent?.key,
+              notice.displayContent?.defaultPattern,
+              data.common?.displayText?.key,
+              data.common?.displayText?.defaultPattern,
+              data.common?.describe,
+              notice.awardReason,
+              notice.cardName,
+              notice.title,
+            ]
+              .filter(Boolean)
+              .join(' ')
+              .toLowerCase();
+
+            // 1. Check GLOVES first (standard battle challenge award)
+            if (
+              cleanText.includes('glove') ||
+              cleanText.includes('critical') ||
+              cleanText.includes('strike') ||
+              cleanText.includes('vault') ||
+              cleanText.includes('قفاز') ||
+              cleanText.includes('القفاز') ||
+              cleanText.includes('قاضية') ||
+              cleanText.includes('الضربة') ||
+              cleanText.includes('سرعة') ||
+              cleanText.includes('speed')
+            ) {
+              cardCode = 'GLOVES';
+              cardName = 'قفازات المعركة';
+              multiplier = 5.0;
+              durationSeconds = 30;
+            } else if (
+              cleanText.includes('smoke') ||
+              cleanText.includes('mist') ||
+              cleanText.includes('fog') ||
+              cleanText.includes('ضباب') ||
+              cleanText.includes('حجب')
+            ) {
+              cardCode = 'MIST';
+              cardName = 'ضباب المعركة';
+              multiplier = 1.0;
+              durationSeconds = 30;
+            } else if (
+              cleanText.includes('extra_time') ||
+              cleanText.includes('extratime') ||
+              cleanText.includes('وقت إضافي') ||
+              cleanText.includes('اضافي') ||
+              cleanText.includes('وقت اضافي') ||
+              cleanText.includes('تمديد')
+            ) {
+              cardCode = 'EXTRA_TIME';
+              cardName = 'وقت إضافي';
+              multiplier = 1.0;
+              durationSeconds = 15;
+            } else if (
+              cleanText.includes('boost_x3') ||
+              cleanText.includes('boost3') ||
+              cleanText.includes('مضاعف 3') ||
+              cleanText.includes('مضاعفة 3') ||
+              cleanText.includes('مضاعف النقاط x3') ||
+              cleanText.includes('3 أضعاف')
+            ) {
+              cardCode = 'BOOST_X3';
+              cardName = 'مضاعف النقاط x3';
+              multiplier = 3.0;
+              durationSeconds = 30;
+            } else if (
+              cleanText.includes('boost_x2') ||
+              cleanText.includes('boost2') ||
+              cleanText.includes('مضاعف 2') ||
+              cleanText.includes('مضاعفة 2') ||
+              cleanText.includes('مضاعف النقاط x2') ||
+              cleanText.includes('ضعفين')
+            ) {
+              cardCode = 'BOOST_X2';
+              cardName = 'مضاعف النقاط x2';
+              multiplier = 2.0;
+              durationSeconds = 30;
+            } else {
+              // Default in TikTok live PK battles: standard task reward is GLOVES
+              cardCode = 'GLOVES';
+              cardName = 'قفازات المعركة';
+              multiplier = 5.0;
+              durationSeconds = 30;
+            }
           }
         }
 
