@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --orange: #ff6a00;
+    --orange2: #ff8a21;
+    --ink: #0b1320;
+    --ink2: #121c2b;
+    --text: #111827;
+    --muted: #6b7280;
+    --line: #e8e8e8;
+    --soft: #fff7f0;
+    --green: #15b878;
+    --purple: #7c3aed;
+    --white: #fff;
+  }
+}
+
+body {
+  background-color: #070A12;
+  color: #f1f5f9;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Cairo", sans-serif;
+  overflow-x: hidden;
+}
+
+/* Tabular Numbers Utility */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tactical Command Center scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: #070A12;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}

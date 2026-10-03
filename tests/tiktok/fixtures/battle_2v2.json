@@ -1,0 +1,38 @@
+{
+  "method": "WebcastLinkMicBattle",
+  "battleId": "7345678909988776699",
+  "battleType": 2,
+  "duration": 300,
+  "teams": [
+    {
+      "teamId": "TEAM_A",
+      "hosts": [
+        {
+          "userId": "7175470052052632577",
+          "uniqueId": "streamer_alpha",
+          "nickname": "الستريمر الأول 🌟"
+        },
+        {
+          "userId": "7175470052052632588",
+          "uniqueId": "streamer_alpha_partner",
+          "nickname": "شريك الفريق أ 🛡️"
+        }
+      ]
+    },
+    {
+      "teamId": "TEAM_B",
+      "hosts": [
+        {
+          "userId": "7199988877766655544",
+          "uniqueId": "streamer_beta",
+          "nickname": "الستريمر المنافس ⚔️"
+        },
+        {
+          "userId": "7199988877766655555",
+          "uniqueId": "streamer_beta_partner",
+          "nickname": "شريك الفريق ب 🏹"
+        }
+      ]
+    }
+  ]
+}

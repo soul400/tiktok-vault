@@ -1,0 +1,28 @@
+{
+  "method": "WebcastLinkMicBattle",
+  "battleId": "7345678909988776655",
+  "battleType": 1,
+  "duration": 300,
+  "teams": [
+    {
+      "teamId": "TEAM_A",
+      "hosts": [
+        {
+          "userId": "7175470052052632577",
+          "uniqueId": "streamer_alpha",
+          "nickname": "الستريمر الأول 🌟"
+        }
+      ]
+    },
+    {
+      "teamId": "TEAM_B",
+      "hosts": [
+        {
+          "userId": "7199988877766655544",
+          "uniqueId": "streamer_beta",
+          "nickname": "الستريمر المنافس ⚔️"
+        }
+      ]
+    }
+  ]
+}

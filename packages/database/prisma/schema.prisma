@@ -1,0 +1,470 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum StreamerStatus {
+  OFFLINE
+  LIVE
+  CONNECTING
+  DEGRADED
+  ERROR
+}
+
+enum SessionStatus {
+  ACTIVE
+  ENDED
+  INTERRUPTED
+}
+
+enum BattleStatus {
+  IN_PROGRESS
+  FINISHED
+  ABORTED
+}
+
+enum PowerUpType {
+  MULTIPLIER
+  OBFUSCATION
+  STRIKE
+  TIME_EXTENSION
+  STRATEGY
+}
+
+enum PowerUpTransactionType {
+  ACQUIRED
+  USED
+  EXPIRED
+  ADJUSTED
+  UNKNOWN
+}
+
+model TrackedStreamer {
+  id                String          @id @default(uuid())
+  username          String          @unique
+  uniqueId          String?
+  displayName       String?
+  profileImage      String?
+  isActive          Boolean         @default(true)
+  monitoringEnabled Boolean         @default(true)
+  status            StreamerStatus  @default(OFFLINE)
+  lastLiveAt        DateTime?
+  lastOfflineAt     DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  sessions          LiveSession[]
+
+  @@map("tracked_streamers")
+}
+
+model LiveSession {
+  id                 String          @id @default(uuid())
+  streamerId         String
+  roomId             String
+  status             SessionStatus   @default(ACTIVE)
+  startedAtUtc       DateTime        @default(now())
+  endedAtUtc         DateTime?
+  durationSeconds    Int             @default(0)
+  timezone           String          @default("Asia/Riyadh")
+  peakViewers        Int             @default(0)
+  totalComments      BigInt          @default(0)
+  totalLikes         BigInt          @default(0)
+  totalShares        BigInt          @default(0)
+  totalGifts         BigInt          @default(0)
+  totalDiamonds      BigInt          @default(0)
+  uniqueParticipants Int             @default(0)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  streamer           TrackedStreamer @relation(fields: [streamerId], references: [id], onDelete: Cascade)
+  events             LiveEvent[]
+  comments           CommentEvent[]
+  likes              LikeEvent[]
+  shares             ShareEvent[]
+  gifts              GiftEvent[]
+  joins              JoinEvent[]
+  battles            BattleSession[]
+  powerUpTx          PowerUpTransaction[]
+  sessionStats       StreamSessionStats?
+  userStats          UserSessionStats[]
+
+  @@index([streamerId, startedAtUtc])
+  @@index([roomId])
+  @@index([status])
+  @@map("live_sessions")
+}
+
+model User {
+  id                       String                 @id @default(uuid())
+  userId                   String                 @unique // TikTok persistent numerical id
+  uniqueId                 String                 // @handle without @
+  nickname                 String
+  avatarUrl                String?
+  secUid                   String?
+  country                  String?
+  badges                   Json?
+  totalComments            BigInt                 @default(0)
+  totalLikes               BigInt                 @default(0)
+  totalShares              BigInt                 @default(0)
+  totalGifts               BigInt                 @default(0)
+  totalDiamonds            BigInt                 @default(0)
+  totalBattlesParticipated Int                    @default(0)
+  totalMvps                Int                    @default(0)
+  firstSeenAt              DateTime               @default(now())
+  lastSeenAt               DateTime               @default(now())
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+
+  liveEvents               LiveEvent[]
+  comments                 CommentEvent[]
+  likes                    LikeEvent[]
+  shares                   ShareEvent[]
+  gifts                    GiftEvent[]
+  joins                    JoinEvent[]
+  watchlists               Watchlist[]
+  battleParticipants       BattleParticipant[]
+  powerUpInventory         UserPowerUpInventory[]
+  powerUpTransactions      PowerUpTransaction[]
+  userSessionStats         UserSessionStats[]
+  weeklySnapshots          WeeklyPowerUpSnapshot[]
+
+  @@index([uniqueId])
+  @@index([totalDiamonds(sort: Desc)])
+  @@index([lastSeenAt(sort: Desc)])
+  @@map("users")
+}
+
+model Watchlist {
+  id              String   @id @default(uuid())
+  userId          String
+  note            String?
+  isActive        Boolean  @default(true)
+  notifyComments  Boolean  @default(true)
+  notifyLikes     Boolean  @default(true)
+  notifyShares    Boolean  @default(true)
+  notifyGifts     Boolean  @default(true)
+  notifyDiamonds  Boolean  @default(true)
+  notifyBattles   Boolean  @default(true)
+  notifyPowerups  Boolean  @default(true)
+  notifyMvp       Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@map("watchlists")
+}
+
+model LiveEvent {
+  id                    String      @id @default(uuid())
+  provider              String
+  providerEventType     String
+  providerEventId       String?
+  providerTransactionId String?
+  streamId              String?
+  sessionId             String
+  userId                String?
+  eventType             String
+  timestampUtc          DateTime
+  payloadJson           Json
+  createdAt             DateTime    @default(now())
+
+  session               LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user                  User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, timestampUtc])
+  @@index([eventType, timestampUtc])
+  @@index([userId, timestampUtc])
+  @@index([createdAt])
+  @@map("live_events")
+}
+
+model CommentEvent {
+  id           String      @id @default(uuid())
+  sessionId    String
+  userId       String
+  commentId    String?
+  commentText  String
+  timestampUtc DateTime
+  createdAt    DateTime    @default(now())
+
+  session      LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, timestampUtc])
+  @@index([userId, timestampUtc])
+  @@map("comment_events")
+}
+
+model LikeEvent {
+  id           String      @id @default(uuid())
+  sessionId    String
+  userId       String
+  likeCount    Int         @default(1)
+  totalLikes   BigInt      @default(0)
+  timestampUtc DateTime
+  createdAt    DateTime    @default(now())
+
+  session      LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, timestampUtc])
+  @@index([userId, timestampUtc])
+  @@map("like_events")
+}
+
+model ShareEvent {
+  id           String      @id @default(uuid())
+  sessionId    String
+  userId       String
+  timestampUtc DateTime
+  createdAt    DateTime    @default(now())
+
+  session      LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, timestampUtc])
+  @@index([userId, timestampUtc])
+  @@map("share_events")
+}
+
+model GiftEvent {
+  id            String      @id @default(uuid())
+  sessionId     String
+  userId        String
+  giftId        String
+  giftName      String
+  diamondValue  Int
+  repeatCount   Int         @default(1)
+  totalDiamonds BigInt
+  transactionId String?
+  timestampUtc  DateTime
+  createdAt     DateTime    @default(now())
+
+  session       LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, totalDiamonds(sort: Desc)])
+  @@index([userId, timestampUtc])
+  @@map("gift_events")
+}
+
+model JoinEvent {
+  id           String      @id @default(uuid())
+  sessionId    String
+  userId       String
+  timestampUtc DateTime
+  createdAt    DateTime    @default(now())
+
+  session      LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, timestampUtc])
+  @@map("join_events")
+}
+
+model GiftCatalog {
+  id           String    @id @default(uuid())
+  giftId       String    @unique
+  name         String
+  diamondValue Int       @default(0)
+  imageUrl     String?
+  category     String?
+  isActive     Boolean   @default(true)
+  firstSeenAt  DateTime  @default(now())
+  lastSeenAt   DateTime  @default(now())
+
+  @@map("gift_catalog")
+}
+
+model BattleSession {
+  id              String         @id @default(uuid())
+  battleId        String         @unique
+  streamSessionId String
+  battleType      String         @default("1v1") // 1v1, 2v2, MULTI
+  status          BattleStatus   @default(IN_PROGRESS)
+  startedAt       DateTime
+  endedAt         DateTime?
+  durationSeconds Int            @default(0)
+  winningTeamId   String?
+  isDraw          Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  session         LiveSession    @relation(fields: [streamSessionId], references: [id], onDelete: Cascade)
+  participants    BattleParticipant[]
+  events          BattleEvent[]
+  powerUpTx       PowerUpTransaction[]
+
+  @@index([streamSessionId, startedAt])
+  @@index([status])
+  @@map("battle_sessions")
+}
+
+model BattleParticipant {
+  id              String        @id @default(uuid())
+  battleSessionId String
+  userId          String
+  teamId          String        // e.g. "TEAM_A", "TEAM_B"
+  role            String        // HOST, GUEST, SUPPORTER, MVP
+  score           BigInt        @default(0)
+  likesCount      BigInt        @default(0)
+  giftsCount      Int           @default(0)
+  diamondsCount   BigInt        @default(0)
+  isMvp           Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+
+  battleSession   BattleSession @relation(fields: [battleSessionId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([battleSessionId, teamId])
+  @@index([userId])
+  @@map("battle_participants")
+}
+
+model BattleEvent {
+  id              String        @id @default(uuid())
+  battleSessionId String
+  eventType       String        // SCORE_UPDATE, MVP_CHANGE, POWERUP_TRIGGER
+  payload         Json
+  timestampUtc    DateTime
+  createdAt       DateTime      @default(now())
+
+  battleSession   BattleSession @relation(fields: [battleSessionId], references: [id], onDelete: Cascade)
+
+  @@index([battleSessionId, timestampUtc])
+  @@map("battle_events")
+}
+
+model PowerUpCatalog {
+  id              String                 @id @default(uuid())
+  code            String                 @unique // GLOVES, MIST, THUNDER, BOOST_X2, etc.
+  nameAr          String
+  nameEn          String
+  type            PowerUpType
+  multiplier      Float                  @default(1.0)
+  durationSeconds Int                    @default(0)
+  iconName        String?
+  assetUrl        String?
+  isActive        Boolean                @default(true)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  inventories     UserPowerUpInventory[]
+  transactions    PowerUpTransaction[]
+  weeklySnapshots WeeklyPowerUpSnapshot[]
+
+  @@map("power_up_catalog")
+}
+
+model UserPowerUpInventory {
+  id            String         @id @default(uuid())
+  userId        String
+  powerUpId     String
+  quantity      Int            @default(0)
+  totalAcquired Int            @default(0)
+  totalUsed     Int            @default(0)
+  lastAcquiredAt DateTime?
+  lastUsedAt    DateTime?
+  updatedAt     DateTime       @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  powerUp       PowerUpCatalog @relation(fields: [powerUpId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, powerUpId])
+  @@index([userId])
+  @@index([powerUpId])
+  @@map("user_power_up_inventory")
+}
+
+model PowerUpTransaction {
+  id                   String                 @id @default(uuid())
+  userId               String
+  powerUpId            String
+  streamSessionId      String?
+  battleSessionId      String?
+  transactionType      PowerUpTransactionType
+  quantity             Int                    // + for ACQUIRED, - for USED
+  quantityBefore       Int
+  quantityAfter        Int
+  sourceEventId        String?
+  sourceTransactionId  String?
+  evidenceNotes        String
+  occurredAt           DateTime
+  createdAt            DateTime               @default(now())
+
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  powerUp              PowerUpCatalog         @relation(fields: [powerUpId], references: [id], onDelete: Cascade)
+  streamSession        LiveSession?           @relation(fields: [streamSessionId], references: [id], onDelete: SetNull)
+  battleSession        BattleSession?         @relation(fields: [battleSessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, occurredAt(sort: Desc)])
+  @@index([battleSessionId])
+  @@index([transactionType])
+  @@map("power_up_transactions")
+}
+
+model WeeklyPowerUpSnapshot {
+  id               String         @id @default(uuid())
+  weekStartUtc     DateTime
+  weekEndUtc       DateTime
+  userId           String
+  powerUpId        String
+  totalAcquired    Int            @default(0)
+  totalUsed        Int            @default(0)
+  balanceRemaining Int            @default(0)
+  createdAt        DateTime       @default(now())
+
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  powerUp          PowerUpCatalog @relation(fields: [powerUpId], references: [id], onDelete: Cascade)
+
+  @@unique([weekStartUtc, userId, powerUpId])
+  @@index([weekStartUtc, userId])
+  @@map("weekly_power_up_snapshots")
+}
+
+model StreamSessionStats {
+  id               String      @id @default(uuid())
+  sessionId        String      @unique
+  peakViewers      Int         @default(0)
+  averageViewers   Int         @default(0)
+  totalComments    BigInt      @default(0)
+  totalLikes       BigInt      @default(0)
+  totalShares      BigInt      @default(0)
+  totalGifts       BigInt      @default(0)
+  totalDiamonds    BigInt      @default(0)
+  uniqueSupporters Int         @default(0)
+  totalBattles     Int         @default(0)
+  updatedAt        DateTime    @updatedAt
+
+  session          LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("stream_session_stats")
+}
+
+model UserSessionStats {
+  id            String      @id @default(uuid())
+  sessionId     String
+  userId        String
+  commentsCount Int         @default(0)
+  likesCount    BigInt      @default(0)
+  sharesCount   Int         @default(0)
+  giftsCount    Int         @default(0)
+  diamondsTotal BigInt      @default(0)
+  firstActionAt DateTime    @default(now())
+  lastActionAt  DateTime    @default(now())
+
+  session       LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@index([sessionId, diamondsTotal(sort: Desc)])
+  @@map("user_session_stats")
+}

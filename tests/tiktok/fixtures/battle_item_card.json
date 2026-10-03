@@ -1,0 +1,16 @@
+{
+  "method": "WebcastLinkMicBattleItemCard",
+  "msgId": "7345678909988776677",
+  "battleId": "7345678909988776655",
+  "cardType": "SMOKE_GRENADE",
+  "cardName": "قنبلة الدخان (Smoke Grenade)",
+  "isUsed": true,
+  "action": "USE",
+  "quantity": 1,
+  "duration": 30,
+  "user": {
+    "id": "7188899900011122233",
+    "displayId": "vip_supporter_sa",
+    "nickname": "الداعم الملكي 👑"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "method": "WebcastChatMessage",
+  "msgId": "7345678901234567890",
+  "content": "مرحبا بالتيم الفوز لنا اليوم 🔥",
+  "createTime": 1789918000000,
+  "user": {
+    "id": "7188899900011122233",
+    "displayId": "vip_supporter_sa",
+    "nickname": "الداعم الملكي 👑",
+    "avatarThumb": {
+      "urlList": ["https://p16-sign.tiktokcdn.com/tos-useast2a-avt-0068/sample_avatar.jpeg"]
+    },
+    "secUid": "MS4wLjABAAAA_SampleSecUidForVerification_VIP"
+  }
+}

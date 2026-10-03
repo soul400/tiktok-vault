@@ -1,0 +1,22 @@
+{
+  "name": "@aep/tiktok-connectors",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w"
+  },
+  "dependencies": {
+    "@aep/database": "workspace:*",
+    "@aep/event-model": "workspace:*",
+    "@aep/event-pipeline": "workspace:*",
+    "@aep/shared": "workspace:*",
+    "@prisma/client": "^6.4.1",
+    "tiktok-live-connector": "^2.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

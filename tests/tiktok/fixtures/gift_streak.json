@@ -1,0 +1,44 @@
+[
+  {
+    "giftId": "5655",
+    "giftName": "Rose",
+    "diamondCount": 1,
+    "repeatCount": 1,
+    "repeatEnd": false,
+    "groupId": "1789918001001",
+    "msgId": "7345678901234567901",
+    "user": {
+      "id": "7188899900011122233",
+      "displayId": "vip_supporter_sa",
+      "nickname": "الداعم الملكي 👑"
+    }
+  },
+  {
+    "giftId": "5655",
+    "giftName": "Rose",
+    "diamondCount": 1,
+    "repeatCount": 2,
+    "repeatEnd": false,
+    "groupId": "1789918001001",
+    "msgId": "7345678901234567902",
+    "user": {
+      "id": "7188899900011122233",
+      "displayId": "vip_supporter_sa",
+      "nickname": "الداعم الملكي 👑"
+    }
+  },
+  {
+    "giftId": "5655",
+    "giftName": "Rose",
+    "diamondCount": 1,
+    "repeatCount": 3,
+    "repeatEnd": true,
+    "groupId": "1789918001001",
+    "msgId": "7345678901234567903",
+    "user": {
+      "id": "7188899900011122233",
+      "displayId": "vip_supporter_sa",
+      "nickname": "الداعم الملكي 👑"
+    }
+  }
+]

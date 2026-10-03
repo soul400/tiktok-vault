@@ -1,0 +1,12 @@
+{
+  "method": "WebcastSuperFanLuckyBoxNewMessage",
+  "msgId": "7345678909988776888",
+  "boxId": "box_999888",
+  "diamondCount": 500,
+  "participantLimit": 50,
+  "user": {
+    "id": "7188899900011122233",
+    "displayId": "vip_supporter_sa",
+    "nickname": "الداعم الملكي 👑"
+  }
+}

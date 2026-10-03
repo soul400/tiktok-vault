@@ -1,0 +1,23 @@
+{
+  "name": "aep-tiktok-intelligence-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AEP — TikTok LIVE Intelligence & Battle Monitoring Platform",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "test": "vitest run",
+    "dev:api": "pnpm --filter @aep/api dev",
+    "dev:worker": "pnpm --filter @aep/worker dev",
+    "dev:dashboard": "pnpm --filter @aep/dashboard dev",
+    "start:api": "pnpm --filter @aep/api start",
+    "db:generate": "pnpm --filter @aep/database db:generate",
+    "db:push": "pnpm --filter @aep/database db:push",
+    "db:seed": "pnpm --filter @aep/database db:seed"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
