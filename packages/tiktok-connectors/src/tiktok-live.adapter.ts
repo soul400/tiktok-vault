@@ -999,16 +999,51 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
             ? Object.values(awardedUsersRaw)
             : [];
 
-        const noticeCount = Number(
-          data.awardCardNotice?.count ||
-          data.awardCardNotice?.cardCount ||
-          data.awardCardNotice?.awardCount ||
-          data.awardCardNotice?.cardNum ||
-          data.awardCardNotice?.totalCount ||
-          data.count ||
-          data.cardCount ||
-          0
-        );
+        // Helper to extract numeric quantity across all known protobuf and JSON field variants
+        const extractItemQuantity = (obj: any): number => {
+          if (!obj || typeof obj !== 'object') return 0;
+          const candidates = [
+            obj.awardCount,
+            obj.awardCardCount,
+            obj.cardAmount,
+            obj.cardCount,
+            obj.count,
+            obj.quantity,
+            obj.amount,
+            obj.cardNum,
+            obj.num,
+            obj.rewardCount,
+            obj.totalCount,
+            obj.score,
+            obj.card_count,
+            obj.card_amount,
+            obj.card_num,
+            obj.award_count,
+            obj.award_card_count,
+          ];
+          for (const c of candidates) {
+            const n = Number(c);
+            if (!isNaN(n) && n > 0) return n;
+          }
+          return 0;
+        };
+
+        const notice = data.awardCardNotice || data.cardObtainGuide || {};
+        const noticeCount = extractItemQuantity(notice) || extractItemQuantity(data);
+
+        // Helper to parse count from text (e.g., "x2", "عدد 2", "بطاقتين", "2 ضباب")
+        const extractCountFromText = (text: string): number => {
+          if (!text) return 0;
+          if (text.includes('بطاقتين') || text.includes('قفازين') || text.includes('ضبابين') || text.includes('قنبلتين')) {
+            return 2;
+          }
+          const m = text.match(/(?:x|×|\*|\b)(\d+)\s*(?:cards?|items?|بطاق(?:ة|ات)?|قفاز(?:ات)?|ضباب|دخان)?\b/i);
+          if (m && m[1]) {
+            const val = parseInt(m[1], 10);
+            if (val >= 1 && val <= 50) return val;
+          }
+          return 0;
+        };
 
         const parsedAwarded: Array<{ user: any; count: number }> = [];
 
@@ -1017,19 +1052,12 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
             const u = item?.user || item;
             if (!u) continue;
             const uid = String(u.userId || u.userIdStr || 'enigma_winner');
-            const itemCount = Number(
-              item?.count ||
-              item?.cardCount ||
-              item?.awardCount ||
-              item?.cardNum ||
-              u?.count ||
-              u?.cardCount ||
-              1
-            );
+            const userCount = extractItemQuantity(item) || extractItemQuantity(u);
+            const finalItemCount = userCount > 0 ? userCount : (noticeCount > 0 ? noticeCount : 1);
 
             const existing = parsedAwarded.find((p) => p.user.userId === uid);
             if (existing) {
-              existing.count += isNaN(itemCount) ? 1 : itemCount;
+              existing.count += finalItemCount;
             } else {
               parsedAwarded.push({
                 user: {
@@ -1038,7 +1066,7 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
                   nickname: u.nickName || u.nickname || u.displayId || 'داعم متخفي (Enigma)',
                   avatarUrl: u.avatarThumb?.urlList?.[0] || u.avatarThumb?.mUrls?.[0] || '',
                 },
-                count: Math.max(isNaN(itemCount) ? 1 : itemCount, noticeCount > 0 && awardedUsersList.length === 1 ? noticeCount : 1),
+                count: finalItemCount,
               });
             }
           }
@@ -1085,6 +1113,10 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
         let quantity = parsedAwarded[0]?.count || (noticeCount > 0 ? noticeCount : 1);
         let multiplier = 1.0;
         let durationSeconds = 30;
+
+        // Direct cardType string / enum check
+        const rawCardTypeStr = String(data.cardType || notice.cardType || data.card_type || notice.card_type || '').toUpperCase();
+        const rawCardTypeNum = Number(data.cardType || notice.cardType || data.card_type || notice.card_type || 0);
 
         // 1. Direct Usage Detection
         if (data.useCriticalStrikeCard || data.useVaultGloveCard) {
@@ -1133,126 +1165,149 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
           // 2. Acquisition Detection - Precise clean text & explicit card object checks
           actionState = 'ACQUIRED';
 
-          const notice = data.awardCardNotice || data.cardObtainGuide || {};
+          // Extract human-readable text for content-based classification
+          const cleanText = [
+            notice.displayContent?.key,
+            notice.displayContent?.defaultPattern,
+            data.common?.displayText?.key,
+            data.common?.displayText?.defaultPattern,
+            data.common?.describe,
+            notice.awardReason,
+            notice.cardName,
+            notice.title,
+            data.title,
+            data.cardName,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
 
-          // Check direct sub-objects on notice or data first
+          // If text mentions explicit quantity (e.g. "x2", "عدد 2", "بطاقتين"), respect it
+          const textCount = extractCountFromText(cleanText);
+          if (textCount > quantity) {
+            quantity = textCount;
+            if (parsedAwarded.length === 1) {
+              parsedAwarded[0].count = textCount;
+            }
+          }
+
+          // A. Check MIST / Smoke FIRST (Direct sub-objects, enums, or text)
           if (
+            data.smokeCard ||
+            notice.smokeCard ||
+            data.smoke ||
+            notice.smoke ||
+            data.fogCard ||
+            notice.fogCard ||
+            data.mistCard ||
+            notice.mistCard ||
+            data.smokeGrenadeCard ||
+            notice.smokeGrenadeCard ||
+            rawCardTypeNum === 2 ||
+            rawCardTypeStr.includes('SMOKE') ||
+            rawCardTypeStr.includes('MIST') ||
+            rawCardTypeStr.includes('FOG') ||
+            cleanText.includes('ضباب') ||
+            cleanText.includes('الضباب') ||
+            cleanText.includes('دخان') ||
+            cleanText.includes('الدخان') ||
+            cleanText.includes('قنبلة') ||
+            cleanText.includes('القنبلة') ||
+            cleanText.includes('حجب') ||
+            cleanText.includes('سحابة') ||
+            cleanText.includes('smoke') ||
+            cleanText.includes('mist') ||
+            cleanText.includes('fog') ||
+            cleanText.includes('grenade') ||
+            cleanText.includes('blind')
+          ) {
+            cardCode = 'MIST';
+            cardName = 'ضباب المعركة';
+            multiplier = 1.0;
+            durationSeconds = 30;
+          } else if (
+            data.top3Card ||
+            notice.top3Card ||
+            rawCardTypeNum === 5 ||
+            rawCardTypeStr.includes('TOP3') ||
+            rawCardTypeStr.includes('BOOST_X3') ||
+            cleanText.includes('مضاعف 3') ||
+            cleanText.includes('مضاعفة 3') ||
+            cleanText.includes('مضاعف x3') ||
+            cleanText.includes('3 أضعاف') ||
+            cleanText.includes('ثلاثة أضعاف') ||
+            cleanText.includes('boost_x3') ||
+            cleanText.includes('boost3')
+          ) {
+            cardCode = 'BOOST_X3';
+            cardName = 'مضاعف النقاط x3';
+            multiplier = 3.0;
+            durationSeconds = 30;
+          } else if (
+            data.top2Card ||
+            notice.top2Card ||
+            rawCardTypeNum === 4 ||
+            rawCardTypeStr.includes('TOP2') ||
+            rawCardTypeStr.includes('BOOST_X2') ||
+            cleanText.includes('مضاعف 2') ||
+            cleanText.includes('مضاعفة 2') ||
+            cleanText.includes('مضاعف x2') ||
+            cleanText.includes('ضعفين') ||
+            cleanText.includes('ضعفان') ||
+            cleanText.includes('boost_x2') ||
+            cleanText.includes('boost2')
+          ) {
+            cardCode = 'BOOST_X2';
+            cardName = 'مضاعف النقاط x2';
+            multiplier = 2.0;
+            durationSeconds = 30;
+          } else if (
+            data.extraTimeCard ||
+            notice.extraTimeCard ||
+            rawCardTypeNum === 3 ||
+            rawCardTypeStr.includes('EXTRA_TIME') ||
+            cleanText.includes('وقت إضافي') ||
+            cleanText.includes('وقت اضافي') ||
+            cleanText.includes('تمديد') ||
+            cleanText.includes('إضافي') ||
+            cleanText.includes('اضافي') ||
+            cleanText.includes('extra_time') ||
+            cleanText.includes('extratime')
+          ) {
+            cardCode = 'EXTRA_TIME';
+            cardName = 'وقت إضافي';
+            multiplier = 1.0;
+            durationSeconds = 15;
+          } else if (
             data.criticalStrikeCard ||
             data.vaultGloveCard ||
             notice.criticalStrikeCard ||
-            notice.vaultGloveCard
+            notice.vaultGloveCard ||
+            rawCardTypeNum === 1 ||
+            rawCardTypeStr.includes('CRITICAL') ||
+            rawCardTypeStr.includes('GLOVE') ||
+            cleanText.includes('قفاز') ||
+            cleanText.includes('القفاز') ||
+            cleanText.includes('قفازات') ||
+            cleanText.includes('القفازات') ||
+            cleanText.includes('قاضية') ||
+            cleanText.includes('الضربة القاضية') ||
+            cleanText.includes('ضربة قاضية') ||
+            cleanText.includes('glove') ||
+            cleanText.includes('critical') ||
+            cleanText.includes('strike') ||
+            cleanText.includes('knockout')
           ) {
             cardCode = 'GLOVES';
             cardName = 'قفازات المعركة';
             multiplier = 5.0;
             durationSeconds = 30;
-          } else if (data.smokeCard || notice.smokeCard) {
-            cardCode = 'MIST';
-            cardName = 'ضباب المعركة';
-            multiplier = 1.0;
-            durationSeconds = 30;
-          } else if (data.extraTimeCard || notice.extraTimeCard) {
-            cardCode = 'EXTRA_TIME';
-            cardName = 'وقت إضافي';
-            multiplier = 1.0;
-            durationSeconds = 15;
-          } else if (data.top3Card || notice.top3Card) {
-            cardCode = 'BOOST_X3';
-            cardName = 'مضاعف النقاط x3';
-            multiplier = 3.0;
-            durationSeconds = 30;
-          } else if (data.top2Card || notice.top2Card) {
-            cardCode = 'BOOST_X2';
-            cardName = 'مضاعف النقاط x2';
-            multiplier = 2.0;
-            durationSeconds = 30;
           } else {
-            // Clean text analysis - only human-readable text (NEVER stringify raw JSON which contains image URLs like @3x.png or usernames)
-            const cleanText = [
-              notice.displayContent?.key,
-              notice.displayContent?.defaultPattern,
-              data.common?.displayText?.key,
-              data.common?.displayText?.defaultPattern,
-              data.common?.describe,
-              notice.awardReason,
-              notice.cardName,
-              notice.title,
-            ]
-              .filter(Boolean)
-              .join(' ')
-              .toLowerCase();
-
-            // 1. Check GLOVES first (standard battle challenge award)
-            if (
-              cleanText.includes('glove') ||
-              cleanText.includes('critical') ||
-              cleanText.includes('strike') ||
-              cleanText.includes('vault') ||
-              cleanText.includes('قفاز') ||
-              cleanText.includes('القفاز') ||
-              cleanText.includes('قاضية') ||
-              cleanText.includes('الضربة') ||
-              cleanText.includes('سرعة') ||
-              cleanText.includes('speed')
-            ) {
-              cardCode = 'GLOVES';
-              cardName = 'قفازات المعركة';
-              multiplier = 5.0;
-              durationSeconds = 30;
-            } else if (
-              cleanText.includes('smoke') ||
-              cleanText.includes('mist') ||
-              cleanText.includes('fog') ||
-              cleanText.includes('ضباب') ||
-              cleanText.includes('حجب')
-            ) {
-              cardCode = 'MIST';
-              cardName = 'ضباب المعركة';
-              multiplier = 1.0;
-              durationSeconds = 30;
-            } else if (
-              cleanText.includes('extra_time') ||
-              cleanText.includes('extratime') ||
-              cleanText.includes('وقت إضافي') ||
-              cleanText.includes('اضافي') ||
-              cleanText.includes('وقت اضافي') ||
-              cleanText.includes('تمديد')
-            ) {
-              cardCode = 'EXTRA_TIME';
-              cardName = 'وقت إضافي';
-              multiplier = 1.0;
-              durationSeconds = 15;
-            } else if (
-              cleanText.includes('boost_x3') ||
-              cleanText.includes('boost3') ||
-              cleanText.includes('مضاعف 3') ||
-              cleanText.includes('مضاعفة 3') ||
-              cleanText.includes('مضاعف النقاط x3') ||
-              cleanText.includes('3 أضعاف')
-            ) {
-              cardCode = 'BOOST_X3';
-              cardName = 'مضاعف النقاط x3';
-              multiplier = 3.0;
-              durationSeconds = 30;
-            } else if (
-              cleanText.includes('boost_x2') ||
-              cleanText.includes('boost2') ||
-              cleanText.includes('مضاعف 2') ||
-              cleanText.includes('مضاعفة 2') ||
-              cleanText.includes('مضاعف النقاط x2') ||
-              cleanText.includes('ضعفين')
-            ) {
-              cardCode = 'BOOST_X2';
-              cardName = 'مضاعف النقاط x2';
-              multiplier = 2.0;
-              durationSeconds = 30;
-            } else {
-              // Default in TikTok live PK battles: standard task reward is GLOVES
-              cardCode = 'GLOVES';
-              cardName = 'قفازات المعركة';
-              multiplier = 5.0;
-              durationSeconds = 30;
-            }
+            // Default in TikTok live PK battles: standard task reward is GLOVES
+            cardCode = 'GLOVES';
+            cardName = 'قفازات المعركة';
+            multiplier = 5.0;
+            durationSeconds = 30;
           }
         }
 
