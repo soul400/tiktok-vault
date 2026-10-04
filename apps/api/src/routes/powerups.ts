@@ -362,4 +362,113 @@ export const powerupsRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
   });
+
+  // POST /api/powerups/vault/calibrate - Calibrate or set starting tool balances for any supporter
+  fastify.post('/powerups/vault/calibrate', async (req, reply) => {
+    const body = (req.body || {}) as {
+      username?: string;
+      userId?: string;
+      tools?: Record<string, number>;
+      reason?: string;
+    };
+
+    const { username, userId, tools, reason = 'معايرة رصيد الداعم الفعلي' } = body;
+    if (!tools || typeof tools !== 'object') {
+      return reply.status(400).send({ success: false, message: 'بيانات الأدوات غير صالحة' });
+    }
+
+    const cleanUsername = username?.replace(/^@/, '').trim();
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          ...(cleanUsername ? [{ uniqueId: cleanUsername }] : []),
+          ...(userId ? [{ id: userId }, { userId }] : []),
+        ],
+      },
+    });
+
+    if (!user) {
+      return reply.status(404).send({ success: false, message: `لم يتم العثور على الداعم ${username || userId}` });
+    }
+
+    const results: any[] = [];
+
+    for (const [code, targetQtyRaw] of Object.entries(tools)) {
+      const targetQty = Math.max(0, Number(targetQtyRaw) || 0);
+      const powerUp = await prisma.powerUpCatalog.findUnique({
+        where: { code: code.toUpperCase() },
+      });
+
+      if (!powerUp) continue;
+
+      const currentInv = await prisma.userPowerUpInventory.findUnique({
+        where: {
+          userId_powerUpId: {
+            userId: user.id,
+            powerUpId: powerUp.id,
+          },
+        },
+      });
+
+      const currentQty = currentInv ? currentInv.quantity : 0;
+      const diff = targetQty - currentQty;
+
+      if (diff !== 0) {
+        await prisma.powerUpTransaction.create({
+          data: {
+            userId: user.id,
+            powerUpId: powerUp.id,
+            transactionType: 'ADJUSTED',
+            quantity: diff,
+            quantityBefore: currentQty,
+            quantityAfter: targetQty,
+            evidenceNotes: `${reason} | Target: ${targetQty}`,
+            occurredAt: new Date(),
+          },
+        });
+
+        await prisma.userPowerUpInventory.upsert({
+          where: {
+            userId_powerUpId: {
+              userId: user.id,
+              powerUpId: powerUp.id,
+            },
+          },
+          update: {
+            quantity: targetQty,
+            totalAcquired: { increment: Math.max(0, diff) },
+            updatedAt: new Date(),
+          },
+          create: {
+            userId: user.id,
+            powerUpId: powerUp.id,
+            quantity: targetQty,
+            totalAcquired: targetQty,
+            totalUsed: 0,
+          },
+        });
+      }
+
+      results.push({
+        code: powerUp.code,
+        nameAr: powerUp.nameAr,
+        previousQuantity: currentQty,
+        newQuantity: targetQty,
+      });
+    }
+
+    return {
+      success: true,
+      message: `تم ضبط وتحديث مخزون الأدوات بنجاح للداعم @${user.uniqueId}`,
+      data: {
+        user: {
+          id: user.id,
+          uniqueId: user.uniqueId,
+          nickname: user.nickname,
+        },
+        tools: results,
+      },
+    };
+  });
 };
+

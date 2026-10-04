@@ -24,7 +24,8 @@ export function getSocket(): Socket {
   }
 
   if (!socket) {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const activeTunnel = 'https://attacks-debut-inquiries-startup.trycloudflare.com';
+    const apiUrl = activeTunnel || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     socket = io(apiUrl, {
       transports: ['websocket'],      // WebSocket only — no polling fallback
       reconnection: true,             // Auto-reconnect on disconnect
