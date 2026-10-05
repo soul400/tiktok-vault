@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "next build",
+    "prebuild": "pnpm --filter @aep/shared build && pnpm --filter @aep/event-model build",
+    "build": "pnpm --filter @aep/shared build && pnpm --filter @aep/event-model build && next build",
     "start": "next start -p 3000"
   },
   "dependencies": {

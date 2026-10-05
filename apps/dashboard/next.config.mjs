@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  transpilePackages: ['@aep/shared', '@aep/event-model'],
   async rewrites() {
     const activeTunnel = 'https://attacks-debut-inquiries-startup.trycloudflare.com';
     const apiUrl = activeTunnel || process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
