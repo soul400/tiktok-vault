@@ -1107,237 +1107,366 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
           };
         }
 
-        let cardCode = 'GLOVES';
-        let actionState: 'DETECTED' | 'ACQUIRED' | 'USED' = 'DETECTED';
-        let cardName = 'قفازات المعركة';
-        let quantity = parsedAwarded[0]?.count || (noticeCount > 0 ? noticeCount : 1);
-        let multiplier = 1.0;
-        let durationSeconds = 30;
+        // 5 Reference Tools Specification
+        const TOOL_SPECS = [
+          {
+            code: 'MIST',
+            nameAr: 'ضباب المعركة',
+            multiplier: 1.0,
+            durationSeconds: 30,
+            keywords: ['ضباب', 'الضباب', 'دخان', 'الدخان', 'قنبلة', 'القنبلة', 'حجب', 'سحابة', 'smoke', 'mist', 'fog', 'grenade', 'blind'],
+            isRawMatch: (d: any, n: any) =>
+              Boolean(
+                d.smokeCard ||
+                  n.smokeCard ||
+                  d.smoke ||
+                  n.smoke ||
+                  d.fogCard ||
+                  n.fogCard ||
+                  d.mistCard ||
+                  n.mistCard ||
+                  d.smokeGrenadeCard ||
+                  n.smokeGrenadeCard ||
+                  Number(d.cardType) === 2 ||
+                  String(d.cardType).toUpperCase().includes('SMOKE') ||
+                  String(d.cardType).toUpperCase().includes('MIST')
+              ),
+          },
+          {
+            code: 'BOOST_X3',
+            nameAr: 'مضاعف النقاط x3',
+            multiplier: 3.0,
+            durationSeconds: 30,
+            keywords: ['مضاعف 3', 'مضاعفة 3', 'مضاعف x3', '3 أضعاف', 'ثلاثة أضعاف', 'boost_x3', 'boost3', 'top3'],
+            isRawMatch: (d: any, n: any) =>
+              Boolean(
+                d.top3Card ||
+                  n.top3Card ||
+                  Number(d.cardType) === 5 ||
+                  String(d.cardType).toUpperCase().includes('TOP3') ||
+                  String(d.cardType).toUpperCase().includes('BOOST_X3')
+              ),
+          },
+          {
+            code: 'BOOST_X2',
+            nameAr: 'مضاعف النقاط x2',
+            multiplier: 2.0,
+            durationSeconds: 30,
+            keywords: ['مضاعف 2', 'مضاعفة 2', 'مضاعف x2', 'ضعفين', 'ضعفان', 'boost_x2', 'boost2', 'top2'],
+            isRawMatch: (d: any, n: any) =>
+              Boolean(
+                d.top2Card ||
+                  n.top2Card ||
+                  Number(d.cardType) === 4 ||
+                  String(d.cardType).toUpperCase().includes('TOP2') ||
+                  String(d.cardType).toUpperCase().includes('BOOST_X2')
+              ),
+          },
+          {
+            code: 'EXTRA_TIME',
+            nameAr: 'وقت إضافي',
+            multiplier: 1.0,
+            durationSeconds: 15,
+            keywords: ['وقت إضافي', 'وقت اضافي', 'تمديد', 'إضافي', 'اضافي', 'extra_time', 'extratime'],
+            isRawMatch: (d: any, n: any) =>
+              Boolean(
+                d.extraTimeCard ||
+                  n.extraTimeCard ||
+                  Number(d.cardType) === 3 ||
+                  String(d.cardType).toUpperCase().includes('EXTRA_TIME')
+              ),
+          },
+          {
+            code: 'GLOVES',
+            nameAr: 'قفازات المعركة',
+            multiplier: 5.0,
+            durationSeconds: 30,
+            keywords: ['قفاز', 'القفاز', 'قفازات', 'القفازات', 'قاضية', 'الضربة القاضية', 'ضربة قاضية', 'glove', 'gloves', 'critical', 'strike', 'knockout'],
+            isRawMatch: (d: any, n: any) =>
+              Boolean(
+                d.criticalStrikeCard ||
+                  d.vaultGloveCard ||
+                  n.criticalStrikeCard ||
+                  n.vaultGloveCard ||
+                  Number(d.cardType) === 1 ||
+                  String(d.cardType).toUpperCase().includes('CRITICAL') ||
+                  String(d.cardType).toUpperCase().includes('GLOVE')
+              ),
+          },
+        ];
 
-        // Direct cardType string / enum check
-        const rawCardTypeStr = String(data.cardType || notice.cardType || data.card_type || notice.card_type || '').toUpperCase();
-        const rawCardTypeNum = Number(data.cardType || notice.cardType || data.card_type || notice.card_type || 0);
-
-        // 1. Direct Usage Detection
+        // 1. Direct Usage Detection (Priority: If someone used a tool in live battle)
         if (data.useCriticalStrikeCard || data.useVaultGloveCard) {
-          cardCode = 'GLOVES';
-          cardName = 'قفازات المعركة';
-          actionState = 'USED';
-          multiplier = 5.0;
-          durationSeconds = 30;
-        } else if (data.useSmokeCard) {
-          cardCode = 'MIST';
-          cardName = 'ضباب المعركة';
-          actionState = 'USED';
-          multiplier = 1.0;
-          durationSeconds = 30;
-        } else if (data.useTop2Card) {
-          cardCode = 'BOOST_X2';
-          cardName = 'مضاعف النقاط x2';
-          actionState = 'USED';
-          multiplier = 2.0;
-          durationSeconds = 30;
-        } else if (data.useTop3Card) {
-          cardCode = 'BOOST_X3';
-          cardName = 'مضاعف النقاط x3';
-          actionState = 'USED';
-          multiplier = 3.0;
-          durationSeconds = 30;
-        } else if (data.useExtraTimeCard) {
-          cardCode = 'EXTRA_TIME';
-          cardName = 'وقت إضافي';
-          actionState = 'USED';
-          multiplier = 1.0;
-          durationSeconds = 15;
-        } else if (data.usePotionCard) {
-          cardCode = 'THUNDER';
-          cardName = 'صاعقة الرعد';
-          actionState = 'USED';
-          multiplier = 1.0;
-          durationSeconds = 0;
-        } else if (data.useSpecialEffectCard || data.useStrategyCard || data.useGuideCard) {
-          cardCode = 'MATCH_GUIDE';
-          cardName = 'دليل المعركة';
-          actionState = 'USED';
-          multiplier = 1.0;
-          durationSeconds = 0;
-        } else {
-          // 2. Acquisition Detection - Precise clean text & explicit card object checks
-          actionState = 'ACQUIRED';
-
-          // Extract human-readable text for content-based classification
-          const cleanText = [
-            notice.displayContent?.key,
-            notice.displayContent?.defaultPattern,
-            data.common?.displayText?.key,
-            data.common?.displayText?.defaultPattern,
-            data.common?.describe,
-            notice.awardReason,
-            notice.cardName,
-            notice.title,
-            data.title,
-            data.cardName,
-          ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase();
-
-          // If text mentions explicit quantity (e.g. "x2", "عدد 2", "بطاقتين"), respect it
-          const textCount = extractCountFromText(cleanText);
-          if (textCount > quantity) {
-            quantity = textCount;
-            if (parsedAwarded.length === 1) {
-              parsedAwarded[0].count = textCount;
-            }
-          }
-
-          // A. Check MIST / Smoke FIRST (Direct sub-objects, enums, or text)
-          if (
-            data.smokeCard ||
-            notice.smokeCard ||
-            data.smoke ||
-            notice.smoke ||
-            data.fogCard ||
-            notice.fogCard ||
-            data.mistCard ||
-            notice.mistCard ||
-            data.smokeGrenadeCard ||
-            notice.smokeGrenadeCard ||
-            rawCardTypeNum === 2 ||
-            rawCardTypeStr.includes('SMOKE') ||
-            rawCardTypeStr.includes('MIST') ||
-            rawCardTypeStr.includes('FOG') ||
-            cleanText.includes('ضباب') ||
-            cleanText.includes('الضباب') ||
-            cleanText.includes('دخان') ||
-            cleanText.includes('الدخان') ||
-            cleanText.includes('قنبلة') ||
-            cleanText.includes('القنبلة') ||
-            cleanText.includes('حجب') ||
-            cleanText.includes('سحابة') ||
-            cleanText.includes('smoke') ||
-            cleanText.includes('mist') ||
-            cleanText.includes('fog') ||
-            cleanText.includes('grenade') ||
-            cleanText.includes('blind')
-          ) {
-            cardCode = 'MIST';
-            cardName = 'ضباب المعركة';
-            multiplier = 1.0;
-            durationSeconds = 30;
-          } else if (
-            data.top3Card ||
-            notice.top3Card ||
-            rawCardTypeNum === 5 ||
-            rawCardTypeStr.includes('TOP3') ||
-            rawCardTypeStr.includes('BOOST_X3') ||
-            cleanText.includes('مضاعف 3') ||
-            cleanText.includes('مضاعفة 3') ||
-            cleanText.includes('مضاعف x3') ||
-            cleanText.includes('3 أضعاف') ||
-            cleanText.includes('ثلاثة أضعاف') ||
-            cleanText.includes('boost_x3') ||
-            cleanText.includes('boost3')
-          ) {
-            cardCode = 'BOOST_X3';
-            cardName = 'مضاعف النقاط x3';
-            multiplier = 3.0;
-            durationSeconds = 30;
-          } else if (
-            data.top2Card ||
-            notice.top2Card ||
-            rawCardTypeNum === 4 ||
-            rawCardTypeStr.includes('TOP2') ||
-            rawCardTypeStr.includes('BOOST_X2') ||
-            cleanText.includes('مضاعف 2') ||
-            cleanText.includes('مضاعفة 2') ||
-            cleanText.includes('مضاعف x2') ||
-            cleanText.includes('ضعفين') ||
-            cleanText.includes('ضعفان') ||
-            cleanText.includes('boost_x2') ||
-            cleanText.includes('boost2')
-          ) {
-            cardCode = 'BOOST_X2';
-            cardName = 'مضاعف النقاط x2';
-            multiplier = 2.0;
-            durationSeconds = 30;
-          } else if (
-            data.extraTimeCard ||
-            notice.extraTimeCard ||
-            rawCardTypeNum === 3 ||
-            rawCardTypeStr.includes('EXTRA_TIME') ||
-            cleanText.includes('وقت إضافي') ||
-            cleanText.includes('وقت اضافي') ||
-            cleanText.includes('تمديد') ||
-            cleanText.includes('إضافي') ||
-            cleanText.includes('اضافي') ||
-            cleanText.includes('extra_time') ||
-            cleanText.includes('extratime')
-          ) {
-            cardCode = 'EXTRA_TIME';
-            cardName = 'وقت إضافي';
-            multiplier = 1.0;
-            durationSeconds = 15;
-          } else if (
-            data.criticalStrikeCard ||
-            data.vaultGloveCard ||
-            notice.criticalStrikeCard ||
-            notice.vaultGloveCard ||
-            rawCardTypeNum === 1 ||
-            rawCardTypeStr.includes('CRITICAL') ||
-            rawCardTypeStr.includes('GLOVE') ||
-            cleanText.includes('قفاز') ||
-            cleanText.includes('القفاز') ||
-            cleanText.includes('قفازات') ||
-            cleanText.includes('القفازات') ||
-            cleanText.includes('قاضية') ||
-            cleanText.includes('الضربة القاضية') ||
-            cleanText.includes('ضربة قاضية') ||
-            cleanText.includes('glove') ||
-            cleanText.includes('critical') ||
-            cleanText.includes('strike') ||
-            cleanText.includes('knockout')
-          ) {
-            cardCode = 'GLOVES';
-            cardName = 'قفازات المعركة';
-            multiplier = 5.0;
-            durationSeconds = 30;
-          } else {
-            // Default in TikTok live PK battles: standard task reward is GLOVES
-            cardCode = 'GLOVES';
-            cardName = 'قفازات المعركة';
-            multiplier = 5.0;
-            durationSeconds = 30;
-          }
+          const payload: PowerUpEventPayload = {
+            powerUpCode: 'GLOVES',
+            powerUpName: 'قفازات المعركة',
+            actionState: 'USED',
+            battleId: data.battleId ? String(data.battleId) : undefined,
+            quantity: 1,
+            multiplier: 5.0,
+            durationSeconds: 30,
+            evidenceNotes: `Live item card: GLOVES (USED x1) for ${winnerUser.uniqueId}`,
+          };
+          this.emitNormalized(
+            UniversalEventType.POWERUP_USED,
+            'WebcastLinkMicBattleItemCard',
+            payload,
+            winnerUser,
+            data.common?.msgId ? String(data.common.msgId) : undefined,
+            undefined,
+            data
+          );
+          return;
         }
 
-        // If multiple users were awarded cards in this event, emit for each
-        if (actionState === 'ACQUIRED' && parsedAwarded.length > 1) {
-          for (const award of parsedAwarded) {
+        if (data.useSmokeCard) {
+          const payload: PowerUpEventPayload = {
+            powerUpCode: 'MIST',
+            powerUpName: 'ضباب المعركة',
+            actionState: 'USED',
+            battleId: data.battleId ? String(data.battleId) : undefined,
+            quantity: 1,
+            multiplier: 1.0,
+            durationSeconds: 30,
+            evidenceNotes: `Live item card: MIST (USED x1) for ${winnerUser.uniqueId}`,
+          };
+          this.emitNormalized(
+            UniversalEventType.POWERUP_USED,
+            'WebcastLinkMicBattleItemCard',
+            payload,
+            winnerUser,
+            data.common?.msgId ? String(data.common.msgId) : undefined,
+            undefined,
+            data
+          );
+          return;
+        }
+
+        if (data.useTop2Card) {
+          const payload: PowerUpEventPayload = {
+            powerUpCode: 'BOOST_X2',
+            powerUpName: 'مضاعف النقاط x2',
+            actionState: 'USED',
+            battleId: data.battleId ? String(data.battleId) : undefined,
+            quantity: 1,
+            multiplier: 2.0,
+            durationSeconds: 30,
+            evidenceNotes: `Live item card: BOOST_X2 (USED x1) for ${winnerUser.uniqueId}`,
+          };
+          this.emitNormalized(
+            UniversalEventType.POWERUP_USED,
+            'WebcastLinkMicBattleItemCard',
+            payload,
+            winnerUser,
+            data.common?.msgId ? String(data.common.msgId) : undefined,
+            undefined,
+            data
+          );
+          return;
+        }
+
+        if (data.useTop3Card) {
+          const payload: PowerUpEventPayload = {
+            powerUpCode: 'BOOST_X3',
+            powerUpName: 'مضاعف النقاط x3',
+            actionState: 'USED',
+            battleId: data.battleId ? String(data.battleId) : undefined,
+            quantity: 1,
+            multiplier: 3.0,
+            durationSeconds: 30,
+            evidenceNotes: `Live item card: BOOST_X3 (USED x1) for ${winnerUser.uniqueId}`,
+          };
+          this.emitNormalized(
+            UniversalEventType.POWERUP_USED,
+            'WebcastLinkMicBattleItemCard',
+            payload,
+            winnerUser,
+            data.common?.msgId ? String(data.common.msgId) : undefined,
+            undefined,
+            data
+          );
+          return;
+        }
+
+        if (data.useExtraTimeCard) {
+          const payload: PowerUpEventPayload = {
+            powerUpCode: 'EXTRA_TIME',
+            powerUpName: 'وقت إضافي',
+            actionState: 'USED',
+            battleId: data.battleId ? String(data.battleId) : undefined,
+            quantity: 1,
+            multiplier: 1.0,
+            durationSeconds: 15,
+            evidenceNotes: `Live item card: EXTRA_TIME (USED x1) for ${winnerUser.uniqueId}`,
+          };
+          this.emitNormalized(
+            UniversalEventType.POWERUP_USED,
+            'WebcastLinkMicBattleItemCard',
+            payload,
+            winnerUser,
+            data.common?.msgId ? String(data.common.msgId) : undefined,
+            undefined,
+            data
+          );
+          return;
+        }
+
+        if (data.usePotionCard) {
+          const payload: PowerUpEventPayload = {
+            powerUpCode: 'THUNDER',
+            powerUpName: 'صاعقة الرعد',
+            actionState: 'USED',
+            battleId: data.battleId ? String(data.battleId) : undefined,
+            quantity: 1,
+            multiplier: 1.0,
+            durationSeconds: 0,
+            evidenceNotes: `Live item card: THUNDER (USED x1) for ${winnerUser.uniqueId}`,
+          };
+          this.emitNormalized(
+            UniversalEventType.POWERUP_USED,
+            'WebcastLinkMicBattleItemCard',
+            payload,
+            winnerUser,
+            data.common?.msgId ? String(data.common.msgId) : undefined,
+            undefined,
+            data
+          );
+          return;
+        }
+
+        if (data.useSpecialEffectCard || data.useStrategyCard || data.useGuideCard) {
+          const payload: PowerUpEventPayload = {
+            powerUpCode: 'MATCH_GUIDE',
+            powerUpName: 'دليل المعركة',
+            actionState: 'USED',
+            battleId: data.battleId ? String(data.battleId) : undefined,
+            quantity: 1,
+            multiplier: 1.0,
+            durationSeconds: 0,
+            evidenceNotes: `Live item card: MATCH_GUIDE (USED x1) for ${winnerUser.uniqueId}`,
+          };
+          this.emitNormalized(
+            UniversalEventType.POWERUP_USED,
+            'WebcastLinkMicBattleItemCard',
+            payload,
+            winnerUser,
+            data.common?.msgId ? String(data.common.msgId) : undefined,
+            undefined,
+            data
+          );
+          return;
+        }
+
+        // 2. Acquisition Detection - Full recursive text extraction (including all Text.pieces and sub-objects)
+        const textPieces: string[] = [];
+        const collectText = (obj: any) => {
+          if (!obj) return;
+          if (typeof obj === 'string') {
+            textPieces.push(obj);
+            return;
+          }
+          if (typeof obj === 'object') {
+            if (obj.key) textPieces.push(String(obj.key));
+            if (obj.defaultPattern) textPieces.push(String(obj.defaultPattern));
+            if (obj.stringValue) textPieces.push(String(obj.stringValue));
+            if (obj.patternRefValue?.key) textPieces.push(String(obj.patternRefValue.key));
+            if (obj.patternRefValue?.defaultPattern) textPieces.push(String(obj.patternRefValue.defaultPattern));
+            if (obj.describe) textPieces.push(String(obj.describe));
+            if (obj.awardReason) textPieces.push(String(obj.awardReason));
+            if (obj.cardName) textPieces.push(String(obj.cardName));
+            if (obj.title) textPieces.push(String(obj.title));
+            if (Array.isArray(obj.pieces)) {
+              for (const p of obj.pieces) collectText(p);
+            }
+          }
+        };
+
+        collectText(notice.displayContent);
+        collectText(data.common?.displayText);
+        collectText(data.common?.describe);
+        collectText(notice);
+        collectText(data);
+
+        const cleanText = textPieces
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        // Helper to find quantity adjacent to a specific tool's keyword
+        const findToolQuantity = (text: string, keywords: string[]): number => {
+          for (const kw of keywords) {
+            const idx = text.indexOf(kw);
+            if (idx !== -1) {
+              const window = text.substring(Math.max(0, idx - 25), Math.min(text.length, idx + kw.length + 25));
+              const m = window.match(/(?:x|×|\*|\b)(\d+)\b|(\d+)\s*(?:cards?|items?|بطاق(?:ة|ات)?)/i);
+              if (m) {
+                const val = parseInt(m[1] || m[2], 10);
+                if (val >= 1 && val <= 50) return val;
+              }
+              if (window.includes('بطاقتين') || window.includes('اثنين') || window.includes('اثنان')) {
+                return 2;
+              }
+            }
+          }
+          return 1;
+        };
+
+        // Match tools against explicit raw objects and recursive text keywords
+        const matchedTools = TOOL_SPECS.filter((spec) => {
+          return spec.isRawMatch(data, notice) || spec.keywords.some((kw) => cleanText.includes(kw));
+        });
+
+        // Determine tool list for the award
+        let awardedTools: Array<{ tool: (typeof TOOL_SPECS)[0]; quantity: number }> = [];
+
+        if (matchedTools.length === 0) {
+          // Standard fallback: battle challenge reward when tool is not named is GLOVES
+          const gloveSpec = TOOL_SPECS.find((s) => s.code === 'GLOVES')!;
+          awardedTools = [{ tool: gloveSpec, quantity: Math.max(1, noticeCount || 1) }];
+        } else if (matchedTools.length === 1) {
+          // Exactly one tool type matched (e.g. MIST only, or GLOVES only)
+          const textCount = extractCountFromText(cleanText);
+          const finalCount = textCount > 0 ? textCount : Math.max(1, noticeCount || 1);
+          awardedTools = [{ tool: matchedTools[0], quantity: finalCount }];
+        } else {
+          // Multiple tools awarded in the same event (e.g. 1 Glove + 1 Mist!)
+          awardedTools = matchedTools.map((m) => ({
+            tool: m,
+            quantity: findToolQuantity(cleanText, m.keywords),
+          }));
+        }
+
+        // Dispatch awards for all winner supporters and all awarded tools
+        const targetUsers = parsedAwarded.length > 0 ? parsedAwarded : [{ user: winnerUser, count: 1 }];
+
+        for (const uAward of targetUsers) {
+          for (const tAward of awardedTools) {
+            const finalQty = awardedTools.length === 1 ? Math.max(1, uAward.count, tAward.quantity) : tAward.quantity;
             const payload: PowerUpEventPayload = {
-              powerUpCode: cardCode,
-              powerUpName: cardName,
+              powerUpCode: tAward.tool.code,
+              powerUpName: tAward.tool.nameAr,
               actionState: 'ACQUIRED',
               battleId: data.battleId ? String(data.battleId) : undefined,
-              quantity: Math.max(1, award.count),
-              multiplier,
-              durationSeconds,
-              evidenceNotes: `Live item card: ${cardCode} (ACQUIRED x${award.count}) for ${award.user.uniqueId}`,
+              quantity: finalQty,
+              multiplier: tAward.tool.multiplier,
+              durationSeconds: tAward.tool.durationSeconds,
+              evidenceNotes: `Live item card: ${tAward.tool.code} (ACQUIRED x${finalQty}) for ${uAward.user.uniqueId}`,
             };
             this.emitNormalized(
               UniversalEventType.POWERUP_ACQUIRED,
               'WebcastLinkMicBattleItemCard',
               payload,
-              award.user,
-              data.common?.msgId ? `${data.common.msgId}_${award.user.userId}` : undefined,
+              uAward.user,
+              data.common?.msgId ? `${data.common.msgId}_${uAward.user.userId}_${tAward.tool.code}` : undefined,
               undefined,
               data
             );
           }
-          return;
         }
-
-        const payload: PowerUpEventPayload = {
+      } catch (err: any) {
+        this.logger.warn(`Could not process battleItemCard: ${err.message}`);
+      }
+    };
           powerUpCode: cardCode,
           powerUpName: cardName,
           actionState,
