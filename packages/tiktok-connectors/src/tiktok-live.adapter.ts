@@ -1108,6 +1108,20 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
         }
 
         // 5 Reference Tools Specification
+        // BattleCardMsgType enum from protobuf (tiktok-live-proto v3):
+        //   0 = UNKNOWN_CARD_ACTION
+        //   1 = CARD_OBTAIN_GUIDE
+        //   2 = USE_CRITICAL_STRIKE_CARD  (GLOVES)
+        //   3 = USE_SMOKE_CARD            (MIST)
+        //   4 = AWARD_CARD_NOTICE         (acquisition notification)
+        //   5 = USE_EXTRA_TIME_CARD
+        //   6 = USE_SPECIAL_EFFECT_CARD   (THUNDER)
+        //   7 = USE_POTION_CARD           (MATCH_GUIDE)
+        //   8 = USE_WAVE_CARD
+        //   9 = SPECIAL_EFFECT_NOTICE
+        //  10 = USE_TOP_2_CARD            (BOOST_X2)
+        //  11 = USE_TOP_3_CARD            (BOOST_X3)
+        //  12 = USE_VAULT_GLOVE_CARD      (GLOVES)
         const TOOL_SPECS = [
           {
             code: 'MIST',
@@ -1117,7 +1131,8 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
             keywords: ['ضباب', 'الضباب', 'دخان', 'الدخان', 'قنبلة', 'القنبلة', 'حجب', 'سحابة', 'smoke', 'mist', 'fog', 'grenade', 'blind'],
             isRawMatch: (d: any, n: any) =>
               Boolean(
-                d.smokeCard ||
+                d.useSmokeCard ||
+                  d.smokeCard ||
                   n.smokeCard ||
                   d.smoke ||
                   n.smoke ||
@@ -1127,7 +1142,7 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
                   n.mistCard ||
                   d.smokeGrenadeCard ||
                   n.smokeGrenadeCard ||
-                  Number(d.cardType) === 2 ||
+                  Number(d.msgType) === 3 ||
                   String(d.cardType).toUpperCase().includes('SMOKE') ||
                   String(d.cardType).toUpperCase().includes('MIST')
               ),
@@ -1140,9 +1155,10 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
             keywords: ['مضاعف 3', 'مضاعفة 3', 'مضاعف x3', '3 أضعاف', 'ثلاثة أضعاف', 'boost_x3', 'boost3', 'top3'],
             isRawMatch: (d: any, n: any) =>
               Boolean(
-                d.top3Card ||
+                d.useTop3Card ||
+                  d.top3Card ||
                   n.top3Card ||
-                  Number(d.cardType) === 5 ||
+                  Number(d.msgType) === 11 ||
                   String(d.cardType).toUpperCase().includes('TOP3') ||
                   String(d.cardType).toUpperCase().includes('BOOST_X3')
               ),
@@ -1155,9 +1171,10 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
             keywords: ['مضاعف 2', 'مضاعفة 2', 'مضاعف x2', 'ضعفين', 'ضعفان', 'boost_x2', 'boost2', 'top2'],
             isRawMatch: (d: any, n: any) =>
               Boolean(
-                d.top2Card ||
+                d.useTop2Card ||
+                  d.top2Card ||
                   n.top2Card ||
-                  Number(d.cardType) === 4 ||
+                  Number(d.msgType) === 10 ||
                   String(d.cardType).toUpperCase().includes('TOP2') ||
                   String(d.cardType).toUpperCase().includes('BOOST_X2')
               ),
@@ -1170,10 +1187,44 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
             keywords: ['وقت إضافي', 'وقت اضافي', 'تمديد', 'إضافي', 'اضافي', 'extra_time', 'extratime'],
             isRawMatch: (d: any, n: any) =>
               Boolean(
-                d.extraTimeCard ||
+                d.useExtraTimeCard ||
+                  d.extraTimeCard ||
                   n.extraTimeCard ||
-                  Number(d.cardType) === 3 ||
+                  Number(d.msgType) === 5 ||
                   String(d.cardType).toUpperCase().includes('EXTRA_TIME')
+              ),
+          },
+          {
+            code: 'THUNDER',
+            nameAr: 'صاعقة الرعد',
+            multiplier: 1.0,
+            durationSeconds: 0,
+            keywords: ['رعد', 'صاعقة', 'thunder', 'special_effect', 'specialeffect', 'wave'],
+            isRawMatch: (d: any, n: any) =>
+              Boolean(
+                d.useSpecialEffectCard ||
+                  d.useWaveCard ||
+                  Number(d.msgType) === 6 ||
+                  Number(d.msgType) === 8 ||
+                  String(d.cardType).toUpperCase().includes('THUNDER') ||
+                  String(d.cardType).toUpperCase().includes('WAVE') ||
+                  String(d.cardType).toUpperCase().includes('SPECIAL_EFFECT')
+              ),
+          },
+          {
+            code: 'MATCH_GUIDE',
+            nameAr: 'دليل المعركة',
+            multiplier: 1.0,
+            durationSeconds: 0,
+            keywords: ['دليل', 'guide', 'potion', 'strategy'],
+            isRawMatch: (d: any, n: any) =>
+              Boolean(
+                d.usePotionCard ||
+                  d.useStrategyCard ||
+                  d.useGuideCard ||
+                  Number(d.msgType) === 7 ||
+                  String(d.cardType).toUpperCase().includes('POTION') ||
+                  String(d.cardType).toUpperCase().includes('GUIDE')
               ),
           },
           {
@@ -1184,16 +1235,29 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
             keywords: ['قفاز', 'القفاز', 'قفازات', 'القفازات', 'قاضية', 'الضربة القاضية', 'ضربة قاضية', 'glove', 'gloves', 'critical', 'strike', 'knockout'],
             isRawMatch: (d: any, n: any) =>
               Boolean(
-                d.criticalStrikeCard ||
+                d.useCriticalStrikeCard ||
+                  d.useVaultGloveCard ||
+                  d.criticalStrikeCard ||
                   d.vaultGloveCard ||
                   n.criticalStrikeCard ||
                   n.vaultGloveCard ||
-                  Number(d.cardType) === 1 ||
+                  Number(d.msgType) === 2 ||
+                  Number(d.msgType) === 12 ||
                   String(d.cardType).toUpperCase().includes('CRITICAL') ||
                   String(d.cardType).toUpperCase().includes('GLOVE')
               ),
           },
         ];
+
+        // UNKNOWN spec used when no tool type can be determined
+        const UNKNOWN_SPEC = {
+          code: 'UNKNOWN',
+          nameAr: 'أداة غير معروفة',
+          multiplier: 1.0,
+          durationSeconds: 0,
+          keywords: [] as string[],
+          isRawMatch: () => false,
+        };
 
         // 1. Direct Usage Detection (Priority: If someone used a tool in live battle)
         if (data.useCriticalStrikeCard || data.useVaultGloveCard) {
@@ -1420,9 +1484,43 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
         let awardedTools: Array<{ tool: (typeof TOOL_SPECS)[0]; quantity: number }> = [];
 
         if (matchedTools.length === 0) {
-          // Standard fallback: battle challenge reward when tool is not named is GLOVES
-          const gloveSpec = TOOL_SPECS.find((s) => s.code === 'GLOVES')!;
-          awardedTools = [{ tool: gloveSpec, quantity: Math.max(1, noticeCount || 1) }];
+          // Tier 1: Try msgType-based classification (BattleCardMsgType protobuf enum)
+          const msgType = Number(data.msgType);
+          const MSG_TYPE_MAP: Record<number, string> = {
+            2: 'GLOVES',     // USE_CRITICAL_STRIKE_CARD
+            3: 'MIST',       // USE_SMOKE_CARD
+            5: 'EXTRA_TIME', // USE_EXTRA_TIME_CARD
+            6: 'THUNDER',    // USE_SPECIAL_EFFECT_CARD
+            7: 'MATCH_GUIDE',// USE_POTION_CARD
+            8: 'THUNDER',    // USE_WAVE_CARD
+            10: 'BOOST_X2',  // USE_TOP_2_CARD
+            11: 'BOOST_X3',  // USE_TOP_3_CARD
+            12: 'GLOVES',    // USE_VAULT_GLOVE_CARD
+          };
+          const msgTypeCode = MSG_TYPE_MAP[msgType];
+          let resolvedSpec = msgTypeCode ? TOOL_SPECS.find((s) => s.code === msgTypeCode) : undefined;
+
+          // Tier 2: Check which use*Card sub-field is populated
+          if (!resolvedSpec) {
+            if (data.useCriticalStrikeCard || data.useVaultGloveCard) resolvedSpec = TOOL_SPECS.find((s) => s.code === 'GLOVES');
+            else if (data.useSmokeCard) resolvedSpec = TOOL_SPECS.find((s) => s.code === 'MIST');
+            else if (data.useExtraTimeCard) resolvedSpec = TOOL_SPECS.find((s) => s.code === 'EXTRA_TIME');
+            else if (data.useTop2Card) resolvedSpec = TOOL_SPECS.find((s) => s.code === 'BOOST_X2');
+            else if (data.useTop3Card) resolvedSpec = TOOL_SPECS.find((s) => s.code === 'BOOST_X3');
+            else if (data.useSpecialEffectCard || data.useWaveCard) resolvedSpec = TOOL_SPECS.find((s) => s.code === 'THUNDER');
+            else if (data.usePotionCard || data.useStrategyCard || data.useGuideCard) resolvedSpec = TOOL_SPECS.find((s) => s.code === 'MATCH_GUIDE');
+          }
+
+          if (resolvedSpec) {
+            awardedTools = [{ tool: resolvedSpec, quantity: Math.max(1, noticeCount || 1) }];
+          } else {
+            // NEVER fallback to GLOVES — use UNKNOWN and log raw data for investigation
+            this.logger.warn(
+              `[BattleItemCard] UNKNOWN tool type — msgType=${data.msgType}, cardType=${data.cardType}, ` +
+              `cleanText="${cleanText.substring(0, 200)}", rawKeys=[${Object.keys(data).join(',')}]`
+            );
+            awardedTools = [{ tool: UNKNOWN_SPEC as any, quantity: Math.max(1, noticeCount || 1) }];
+          }
         } else if (matchedTools.length === 1) {
           // Exactly one tool type matched (e.g. MIST only, or GLOVES only)
           const textCount = extractCountFromText(cleanText);
@@ -1467,36 +1565,7 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
         this.logger.warn(`Could not process battleItemCard: ${err.message}`);
       }
     };
-          powerUpCode: cardCode,
-          powerUpName: cardName,
-          actionState,
-          battleId: data.battleId ? String(data.battleId) : undefined,
-          quantity: Math.max(1, quantity),
-          multiplier,
-          durationSeconds,
-          evidenceNotes: `Live item card: ${cardCode} (${actionState} x${quantity}) for ${winnerUser.uniqueId}`,
-        };
 
-        const eventType =
-          actionState === 'ACQUIRED'
-            ? UniversalEventType.POWERUP_ACQUIRED
-            : actionState === 'USED'
-              ? UniversalEventType.POWERUP_USED
-              : UniversalEventType.POWERUP_DETECTED;
-
-        this.emitNormalized(
-          eventType,
-          'WebcastLinkMicBattleItemCard',
-          payload,
-          winnerUser,
-          data.common?.msgId ? String(data.common.msgId) : undefined,
-          undefined,
-          data
-        );
-      } catch (err: any) {
-        this.logger.warn(`Could not process battleItemCard: ${err.message}`);
-      }
-    };
 
     // Helper for processing Boost Card messages (WebcastBoostCardMessage)
     const processBoostCardMessage = (data: any) => {

@@ -75,6 +75,16 @@ const DEFAULT_POWERUPS = [
     iconName: 'book-open',
     assetUrl: '/assets/powerups/guide.png',
   },
+  {
+    code: 'UNKNOWN',
+    nameAr: 'أداة غير معروفة',
+    nameEn: 'Unknown Battle Tool',
+    type: PowerUpType.UNKNOWN,
+    multiplier: 1.0,
+    durationSeconds: 0,
+    iconName: 'help-circle',
+    assetUrl: '/assets/powerups/unknown.png',
+  },
 ];
 
 const DEFAULT_GIFTS = [
