@@ -70,7 +70,14 @@ interface StreamStore {
 }
 
 export const useStreamStore = create<StreamStore>((set) => ({
-  selectedStreamer: null,
+  selectedStreamer: {
+    id: '06146b06-0969-4142-93ca-90a7deb018a8',
+    username: 'mohra.2000',
+    uniqueId: 'mohra.2000',
+    displayName: 'المهرة',
+    status: 'OFFLINE',
+    monitoringEnabled: true,
+  },
   streamers: [],
   events: [],
   metrics: {

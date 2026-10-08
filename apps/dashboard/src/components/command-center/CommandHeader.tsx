@@ -90,32 +90,54 @@ export function CommandHeader({ onSwitchStreamer }: CommandHeaderProps) {
         </div>
 
         {/* Active Streamer Pill */}
-        {selectedStreamer && (
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-lg bg-[#101625] border border-white/[0.08]">
-            <div className="relative">
-              <div className="w-6 h-6 rounded-full bg-slate-800 overflow-hidden ring-1 ring-white/20">
-                {selectedStreamer.profileImage ? (
-                  <img src={selectedStreamer.profileImage} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white">
-                    {selectedStreamer.username[0]?.toUpperCase()}
-                  </div>
-                )}
+        {(() => {
+          const streamer = selectedStreamer || {
+            username: 'mohra.2000',
+            displayName: 'المهرة',
+            status: 'OFFLINE' as const,
+            profileImage: undefined as string | undefined,
+          };
+          const isLive = streamer.status === 'LIVE';
+          return (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#101625] border border-white/[0.08]">
+              <div className="relative">
+                <div className="w-7 h-7 rounded-full bg-slate-800 overflow-hidden ring-1 ring-white/20">
+                  {streamer.profileImage ? (
+                    <img src={streamer.profileImage} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white">
+                      {streamer.username[0]?.toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <span
+                  className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-[#070A12] ${
+                    isLive ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'
+                  }`}
+                />
               </div>
-              <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-[#070A12] ${
-                selectedStreamer.status === 'LIVE' ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'
-              }`} />
+              <div className="text-right min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span dir="ltr" className="text-xs font-bold text-slate-200 font-mono leading-none">
+                    @{streamer.username}
+                  </span>
+                  <span
+                    className={`text-[9px] font-bold px-1.5 py-0.2 rounded font-sans ${
+                      isLive
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-slate-700/50 text-slate-400 border border-slate-600/30'
+                    }`}
+                  >
+                    {isLive ? 'مباشر' : 'غير متصل'}
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-400 font-medium truncate max-w-[140px]">
+                  {streamer.displayName || 'البث المباشر'}
+                </div>
+              </div>
             </div>
-            <div className="text-right min-w-0">
-              <div dir="ltr" className="text-xs font-bold text-slate-200 font-mono leading-none">
-                @{selectedStreamer.username}
-              </div>
-              <div className="text-[10px] text-slate-400 font-medium truncate max-w-[120px]">
-                {selectedStreamer.displayName || 'البث المباشر'}
-              </div>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* 2. Streamer Connection Input */}

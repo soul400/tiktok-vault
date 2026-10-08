@@ -24,7 +24,7 @@ export function getSocket(): Socket {
   }
 
   if (!socket) {
-    const activeTunnel = 'https://attacks-debut-inquiries-startup.trycloudflare.com';
+    const activeTunnel = 'https://magazine-medal-representation-them.trycloudflare.com';
     const apiUrl = activeTunnel || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     socket = io(apiUrl, {
       transports: ['websocket'],      // WebSocket only — no polling fallback

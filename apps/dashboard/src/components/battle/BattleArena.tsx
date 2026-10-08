@@ -275,12 +275,35 @@ export function BattleArena({ onViewDetails }: BattleArenaProps) {
         {/* Center Timer & Battle Status */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[#101625] border border-white/[0.08]">
-            <Clock className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-[11px] text-slate-400">الوقت المتبقي:</span>
-            <span dir="ltr" className="text-sm font-black text-amber-400 font-mono tabular-nums">
-              {timeLeft}
-            </span>
+            {currentBattle?.status === 'IN_PROGRESS' ? (
+              <>
+                <Clock className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
+                <span className="text-[11px] text-slate-400">الوقت المتبقي:</span>
+                <span dir="ltr" className="text-sm font-black text-rose-400 font-mono tabular-nums">
+                  {timeLeft}
+                </span>
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-sans">
+                  مباشر 🔴
+                </span>
+              </>
+            ) : (
+              <>
+                <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[11px] text-slate-400">حالة الجولة:</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-sans">
+                  آخر جولة مسجلة 🏁
+                </span>
+              </>
+            )}
           </div>
+
+          <button
+            onClick={() => fetchBattle()}
+            title="تحديث بيانات الجولة"
+            className="p-1.5 rounded-lg bg-[#101625] border border-white/[0.08] text-slate-400 hover:text-cyan-400 transition-colors"
+          >
+            <Clock className="w-3.5 h-3.5" />
+          </button>
 
           {/* Mode Switcher */}
           <div className="flex items-center bg-[#070A12] p-1 rounded-lg border border-white/[0.08] text-xs font-bold">
