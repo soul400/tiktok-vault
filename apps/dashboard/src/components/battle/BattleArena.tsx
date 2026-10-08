@@ -21,24 +21,28 @@ export function BattleArena({ onViewDetails }: BattleArenaProps) {
   // Fetch real battle data on mount and poll
   const fetchBattle = async () => {
     try {
-      const res = await fetch('/api/battles?limit=5');
-      const data = await res.json();
-      if (data.success && data.data && data.data.length > 0) {
-        const active = data.data.find((b: any) => b.status === 'IN_PROGRESS') || data.data[0];
+      const streamerId = selectedStreamer?.id;
+      const url = streamerId ? `/api/battles/latest?streamerId=${streamerId}` : '/api/battles?limit=5';
+      const res = await fetch(url);
+      const resData = await res.json();
+      
+      const battleRecord = resData.success ? (resData.data?.id ? resData.data : (Array.isArray(resData.data) ? resData.data[0] : null)) : null;
+
+      if (battleRecord) {
         setBattleData((prev: any) => {
-          if (!prev) return active;
-          if (prev.battleId && active.battleId && String(prev.battleId) === String(active.battleId)) {
+          if (!prev) return battleRecord;
+          if (prev.battleId && battleRecord.battleId && String(prev.battleId) === String(battleRecord.battleId)) {
             return {
-              ...active,
-              teamAScore: Math.max(Number(prev.teamAScore || 0), Number(active.teamAScore || 0)),
-              teamBScore: Math.max(Number(prev.teamBScore || 0), Number(active.teamBScore || 0)),
-              hostScore: Math.max(Number(prev.hostScore || prev.teamAScore || 0), Number(active.hostScore || active.teamAScore || 0)),
-              rivalScore: Math.max(Number(prev.rivalScore || prev.teamBScore || 0), Number(active.rivalScore || active.teamBScore || 0)),
+              ...battleRecord,
+              teamAScore: Math.max(Number(prev.teamAScore || 0), Number(battleRecord.teamAScore || 0)),
+              teamBScore: Math.max(Number(prev.teamBScore || 0), Number(battleRecord.teamBScore || 0)),
+              hostScore: Math.max(Number(prev.hostScore || prev.teamAScore || 0), Number(battleRecord.hostScore || battleRecord.teamAScore || 0)),
+              rivalScore: Math.max(Number(prev.rivalScore || prev.teamBScore || 0), Number(battleRecord.rivalScore || battleRecord.teamBScore || 0)),
             };
           }
-          return active;
+          return battleRecord;
         });
-        if (active.battleType === '2v2' || active.participants?.length > 2 || active.teams?.[0]?.hosts?.length > 1) {
+        if (battleRecord.battleType === '2v2' || battleRecord.participants?.length > 2 || battleRecord.teams?.[0]?.hosts?.length > 1) {
           setBattleMode('2v2');
         }
       }

@@ -159,6 +159,77 @@ export const battlesRoutes: FastifyPluginAsync = async (fastify) => {
     };
   };
 
+  // GET /api/battles/latest - Latest battle for a streamer (live or most recent historical)
+  fastify.get('/battles/latest', async (request, reply) => {
+    const { streamerId } = request.query as any;
+    if (!streamerId) {
+      return reply.status(400).send({ error: 'streamerId is required' });
+    }
+
+    const battle = await prisma.battleSession.findFirst({
+      where: {
+        session: { streamerId },
+      },
+      orderBy: { startedAt: 'desc' },
+      include: {
+        session: {
+          include: { streamer: true },
+        },
+        participants: {
+          include: { user: true },
+        },
+        events: {
+          where: { eventType: 'ARMIES_UPDATE' },
+          orderBy: { timestampUtc: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    if (!battle) return reply.status(404).send({ error: 'No battles found for this streamer' });
+
+    return {
+      success: true,
+      data: formatBattleRecord(battle),
+    };
+  });
+
+  // GET /api/battles/history - All battles for a streamer with pagination
+  fastify.get('/battles/history', async (request) => {
+    const { streamerId, limit = 20, offset = 0 } = request.query as any;
+
+    const where = streamerId ? { session: { streamerId } } : undefined;
+
+    const [battles, total] = await Promise.all([
+      prisma.battleSession.findMany({
+        where,
+        orderBy: { startedAt: 'desc' },
+        take: Number(limit),
+        skip: Number(offset),
+        include: {
+          session: {
+            include: { streamer: true },
+          },
+          participants: {
+            include: { user: true },
+          },
+          events: {
+            where: { eventType: 'ARMIES_UPDATE' },
+            orderBy: { timestampUtc: 'desc' },
+            take: 1,
+          },
+        },
+      }),
+      prisma.battleSession.count({ where }),
+    ]);
+
+    return {
+      success: true,
+      data: battles.map(formatBattleRecord),
+      pagination: { total, limit: Number(limit), offset: Number(offset) },
+    };
+  });
+
   // GET /api/battles
   fastify.get('/battles', async (request) => {
     const { status, limit = 20 } = request.query as any;
