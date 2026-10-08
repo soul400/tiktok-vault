@@ -41,6 +41,9 @@ export enum UniversalEventType {
   POWERUP_USED = 'POWERUP_USED',
   POWERUP_EXPIRED = 'POWERUP_EXPIRED',
 
+  // Opponent & Inter-room events
+  LINKMIC_OPPONENT_GIFT = 'LINKMIC_OPPONENT_GIFT',
+
   // Catch-All / Unknown Events
   UNKNOWN_EVENT = 'UNKNOWN_EVENT'
 }
@@ -179,4 +182,19 @@ export interface PowerUpEventPayload {
   multiplier?: number;
   durationSeconds?: number;
   evidenceNotes: string;
+}
+
+export interface LinkMicOpponentGiftPayload {
+  senderUserId: string;
+  opponentRoomId: string;
+  opponentUserId?: string;
+  opponentUniqueId?: string;
+  opponentNickname?: string;
+  giftId: number | string;
+  giftName?: string;
+  giftPictureUrl?: string;
+  diamondCount?: number;
+  transactionId?: string;
+  startedAtMs?: number;
+  endsAtMs?: number;
 }

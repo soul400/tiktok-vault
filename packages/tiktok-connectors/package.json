@@ -14,9 +14,11 @@
     "@aep/event-pipeline": "workspace:*",
     "@aep/shared": "workspace:*",
     "@prisma/client": "^6.4.1",
-    "tiktok-live-connector": "^2.5.0"
+    "tiktok-live-connector": "^2.5.0",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
+    "@types/ws": "^8.18.2",
     "typescript": "^5.7.2"
   }
 }

@@ -17,6 +17,14 @@ export function BattleArena({ onViewDetails }: BattleArenaProps) {
   const [battleData, setBattleData] = useState<any>(null);
   const [battleMode, setBattleMode] = useState<'1v1' | '2v2'>('1v1');
   const [timeLeft, setTimeLeft] = useState('04:42');
+  const [opponentGifts, setOpponentGifts] = useState<Array<{
+    id: string;
+    sender: string;
+    giftName: string;
+    diamondCount: number;
+    giftPictureUrl?: string;
+    timestamp: string;
+  }>>([]);
 
   // Fetch real battle data on mount and poll
   const fetchBattle = async () => {
@@ -93,10 +101,27 @@ export function BattleArena({ onViewDetails }: BattleArenaProps) {
       setBattleData((prev: any) => (prev ? { ...prev, status: 'FINISHED' } : null));
     };
 
+    const onOpponentGift = (data: any) => {
+      const p = data?.payload;
+      if (!p) return;
+      setOpponentGifts((prev) => [
+        {
+          id: p.transactionId || `op_${Date.now()}_${Math.random()}`,
+          sender: data?.user?.nickname || data?.user?.uniqueId || 'داعم الخصم',
+          giftName: p.giftName || 'هدية خصم',
+          diamondCount: Number(p.diamondCount || 0),
+          giftPictureUrl: p.giftPictureUrl || '',
+          timestamp: data?.timestamp || new Date().toISOString(),
+        },
+        ...prev.slice(0, 19),
+      ]);
+    };
+
     socket.on('battle:start', onBattleStart);
     socket.on('battle:update', onBattleUpdate);
     socket.on('battle:armies', onBattleUpdate);
     socket.on('battle:end', onBattleEnd);
+    socket.on('battle:opponent_gift', onOpponentGift);
 
     return () => {
       clearInterval(interval);
@@ -104,6 +129,7 @@ export function BattleArena({ onViewDetails }: BattleArenaProps) {
       socket.off('battle:update', onBattleUpdate);
       socket.off('battle:armies', onBattleUpdate);
       socket.off('battle:end', onBattleEnd);
+      socket.off('battle:opponent_gift', onOpponentGift);
     };
   }, []);
 
@@ -369,6 +395,28 @@ export function BattleArena({ onViewDetails }: BattleArenaProps) {
             className="h-full bg-gradient-to-l from-rose-600 to-red-500 transition-all duration-300"
           />
         </div>
+
+        {/* Live Opponent Gifts Ticker (LinkMicOpponentGift) */}
+        {opponentGifts.length > 0 && (
+          <div className="mt-2.5 flex items-center gap-2 overflow-x-auto py-1.5 px-3 bg-rose-950/30 border border-rose-500/20 rounded-lg text-xs">
+            <span className="text-[10px] font-bold text-rose-400 bg-rose-900/50 px-2 py-0.5 rounded font-mono shrink-0">
+              ⚡ دعم الخصم المباشر
+            </span>
+            <div className="flex items-center gap-3 overflow-x-auto">
+              {opponentGifts.slice(0, 5).map((og) => (
+                <div key={og.id} className="flex items-center gap-1.5 text-slate-300 shrink-0 font-sans">
+                  {og.giftPictureUrl && <img src={og.giftPictureUrl} alt="" className="w-4 h-4 object-contain" />}
+                  <span className="font-semibold text-rose-300">{og.sender}</span>
+                  <span className="text-slate-400">أرسل</span>
+                  <span className="text-amber-300 font-bold">{og.giftName}</span>
+                  {og.diamondCount > 0 && (
+                    <span className="text-[10px] text-amber-400 font-mono">({og.diamondCount}💎)</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 3. Main Arena Content Grid: Team A (Right) and Team B (Left) in RTL */}

@@ -1606,6 +1606,56 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
     this.connection.on('boostCard', processBoostCardMessage);
     this.connection.on('battleItemCard', processBattleItemCard);
 
+    // LinkMic Opponent Gift (live event hook if fired directly by connector)
+    this.connection.on('linkMicOpponentGift', (data: any) => {
+      const actualData = data?.data || data;
+      const opponentGiftPayload = {
+        senderUserId: String(actualData?.senderUserId || actualData?.userId || actualData?.fromUserId || ''),
+        opponentRoomId: String(actualData?.opponentRoomId || actualData?.roomId || ''),
+        opponentUserId: String(actualData?.opponentUserId || actualData?.toUserId || ''),
+        giftId: actualData?.giftId || 0,
+        giftName: actualData?.giftName || actualData?.gift?.name || '',
+        giftPictureUrl: actualData?.giftPictureUrl || actualData?.gift?.image?.urlList?.[0] || '',
+        diamondCount: Number(actualData?.diamondCount || actualData?.diamonds || 0),
+        transactionId: actualData?.transactionId || actualData?.msgId || undefined,
+        startedAtMs: Number(actualData?.startedAtMs || Date.now()),
+        endsAtMs: Number(actualData?.endsAtMs || 0),
+      };
+
+      const user = this.extractUser(actualData) || {
+        userId: opponentGiftPayload.senderUserId || 'opponent_gifter',
+        uniqueId: actualData?.senderUniqueId || 'opponent_gifter',
+        nickname: actualData?.senderNickname || 'داعم الخصم',
+      };
+
+      this.emitNormalized(
+        UniversalEventType.LINKMIC_OPPONENT_GIFT,
+        'linkMicOpponentGift',
+        opponentGiftPayload,
+        user,
+        actualData?.msgId ? String(actualData.msgId) : undefined,
+        undefined,
+        data
+      );
+    });
+
+    // LinkMic Battle Punish Finish (punish/verdict timeout or conclusion)
+    this.connection.on('linkMicBattlePunishFinish', (data: any) => {
+      this.emitNormalized(
+        UniversalEventType.BATTLE_END,
+        'linkMicBattlePunishFinish',
+        {
+          battleId: String(data?.battleId || ''),
+          winningTeamId: data?.reason === 1 ? 'TEAM_A' : 'TEAM_B',
+          isDraw: data?.reason === 3,
+        },
+        undefined,
+        data?.msgId ? String(data.msgId) : undefined,
+        undefined,
+        data
+      );
+    });
+
     // Catch-all for UNKNOWN_EVENT via decodedData stream with specialized decoders
     const knownMethods = new Set([
       'WebcastChatMessage',
@@ -1645,6 +1695,38 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
               isDraw: actualData?.reason === 3,
             },
             undefined,
+            actualData?.common?.msgId ? String(actualData.common.msgId) : undefined,
+            undefined,
+            rawPayload
+          );
+          return;
+        }
+
+        if (method === 'WebcastLinkMicOpponentGiftMessage' || method === 'WebcastLinkMicOpponentGift') {
+          const opponentGiftPayload = {
+            senderUserId: String(actualData?.senderUserId || actualData?.userId || actualData?.fromUserId || ''),
+            opponentRoomId: String(actualData?.opponentRoomId || actualData?.roomId || ''),
+            opponentUserId: String(actualData?.opponentUserId || actualData?.toUserId || ''),
+            giftId: actualData?.giftId || 0,
+            giftName: actualData?.giftName || actualData?.gift?.name || '',
+            giftPictureUrl: actualData?.giftPictureUrl || actualData?.gift?.image?.urlList?.[0] || '',
+            diamondCount: Number(actualData?.diamondCount || actualData?.diamonds || 0),
+            transactionId: actualData?.transactionId || actualData?.common?.msgId ? String(actualData.transactionId || actualData.common.msgId) : undefined,
+            startedAtMs: Number(actualData?.startedAtMs || Date.now()),
+            endsAtMs: Number(actualData?.endsAtMs || 0),
+          };
+
+          const user = this.extractUser(actualData) || {
+            userId: opponentGiftPayload.senderUserId || 'opponent_gifter',
+            uniqueId: actualData?.senderUniqueId || 'opponent_gifter',
+            nickname: actualData?.senderNickname || 'داعم الخصم',
+          };
+
+          this.emitNormalized(
+            UniversalEventType.LINKMIC_OPPONENT_GIFT,
+            method,
+            opponentGiftPayload,
+            user,
             actualData?.common?.msgId ? String(actualData.common.msgId) : undefined,
             undefined,
             rawPayload

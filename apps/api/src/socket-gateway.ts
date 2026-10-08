@@ -178,6 +178,21 @@ export class SocketGateway {
         });
         break;
 
+      case UniversalEventType.LINKMIC_OPPONENT_GIFT:
+        this.io.to(room).emit('battle:opponent_gift', {
+          user: event.user,
+          payload: event.payload,
+          streamerId: event.streamerId,
+          timestamp: event.timestampUtc,
+        });
+        this.io.emit('battle:opponent_gift', {
+          user: event.user,
+          payload: event.payload,
+          streamerId: event.streamerId,
+          timestamp: event.timestampUtc,
+        });
+        break;
+
       case UniversalEventType.STREAM_ENDED:
         this.io.to(room).emit('stream:ended', {
           streamerId: event.streamerId,
