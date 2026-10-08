@@ -161,35 +161,37 @@ export default function DashboardPage() {
       />
 
       {/* Main Operational Viewport: Dedicated Battle Intelligence & Tools Center */}
-      <main className="flex-1 overflow-y-auto px-4 lg:px-8 py-5 space-y-6 max-w-[1920px] mx-auto w-full">
+      <main className="flex-1 overflow-y-auto px-4 lg:px-8 py-6 space-y-6 max-w-[1920px] mx-auto w-full">
         {/* Sub-Header Banner & Navigation Tabs */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-white/[0.06]">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600/30 via-indigo-600/20 to-cyan-500/30 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shadow-lg shadow-cyan-500/10">
-              <Swords className="w-5 h-5" />
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/[0.08] bg-[#0c1220]/60 p-4 rounded-2xl border border-white/[0.06] backdrop-blur-md shadow-xl">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-cyan-400 border border-cyan-400/40 flex items-center justify-center text-white shadow-xl shadow-cyan-500/20 ring-2 ring-white/10">
+              <Swords className="w-5 h-5 drop-shadow" />
             </div>
             <div>
-              <h1 className="text-base font-black text-slate-100 flex items-center gap-2">
-                <span>مركز استخبارات معارك PK وخزينة الأدوات</span>
-                <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-500/20 font-normal">
-                  BATTLE INTELLIGENCE & VAULT
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-lg font-black text-white tracking-tight">
+                  مركز استخبارات معارك PK وخزينة الأدوات
+                </h1>
+                <span className="text-[10px] font-mono font-bold text-cyan-300 bg-cyan-950/70 px-2.5 py-0.5 rounded-full border border-cyan-500/40 shadow-sm">
+                  LIVE WORKSTATION 2026
                 </span>
-              </h1>
-              <p className="text-xs text-slate-400">
-                تتبع فوري لجولات PK وسكور الفرق والمنافسين مع رصد مخزون أدوات القوة التكتيكية
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                تتبع فوري ومؤتمت لجولات PK (1v1 / 2v2) وسكور الفرق والمنافسين مع رصد استراتيجي لخزينة ومخزون الأدوات
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             {/* View Navigation Tabs */}
-            <div className="flex items-center bg-[#0d1424] p-1 rounded-xl border border-white/[0.08] text-xs font-bold shadow-inner">
+            <div className="flex items-center bg-[#070b14] p-1.5 rounded-2xl border border-white/[0.1] text-xs font-bold shadow-2xl gap-1">
               <button
                 onClick={() => setActiveTab('ALL')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 ${
                   activeTab === 'ALL'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg shadow-cyan-500/25 ring-1 ring-white/20'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
                 }`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
@@ -198,10 +200,10 @@ export default function DashboardPage() {
 
               <button
                 onClick={() => setActiveTab('BATTLE')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 ${
                   activeTab === 'BATTLE'
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/30 ring-1 ring-white/20'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
                 }`}
               >
                 <Swords className="w-3.5 h-3.5 text-cyan-400" />
@@ -210,10 +212,10 @@ export default function DashboardPage() {
 
               <button
                 onClick={() => setActiveTab('VAULT')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 ${
                   activeTab === 'VAULT'
-                    ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-600/30'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-600/30 ring-1 ring-white/20'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
                 }`}
               >
                 <Shield className="w-3.5 h-3.5 text-cyan-400" />
@@ -224,10 +226,10 @@ export default function DashboardPage() {
             {/* Quick System Telemetry Toggle */}
             <button
               onClick={() => setShowSystemHealth(!showSystemHealth)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0c1220] border border-white/[0.08] text-xs font-mono text-slate-400 hover:text-slate-200 transition-colors"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#070b14] border border-white/[0.08] text-xs font-mono text-slate-400 hover:text-slate-100 transition-all shadow-md hover:border-cyan-500/40"
             >
               <Activity className="w-3.5 h-3.5 text-cyan-400" />
-              <span>صحة خط الاتصال</span>
+              <span>صحة الاتصال</span>
               {showSystemHealth ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
           </div>

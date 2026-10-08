@@ -50,9 +50,16 @@ export function BattleArena({ onViewDetails }: BattleArenaProps) {
           }
           return battleRecord;
         });
-        if (battleRecord.battleType === '2v2' || battleRecord.participants?.length > 2 || battleRecord.teams?.[0]?.hosts?.length > 1) {
-          setBattleMode('2v2');
-        }
+
+        // Fully automated 1v1 vs 2v2 detection based on battle payload
+        const hostsCount = (battleRecord.teams?.[0]?.hosts?.length || 0) + (battleRecord.teams?.[1]?.hosts?.length || 0);
+        const isAuto2v2 =
+          battleRecord.battleType === '2v2' ||
+          battleRecord.battleType === 2 ||
+          hostsCount > 2 ||
+          (battleRecord.participants?.length || 0) > 2;
+
+        setBattleMode(isAuto2v2 ? '2v2' : '1v1');
       }
     } catch (e) {
       console.error('Failed to fetch battle in BattleArena:', e);
@@ -78,9 +85,15 @@ export function BattleArena({ onViewDetails }: BattleArenaProps) {
           rivalScore: Math.max(Number(prev.rivalScore || prev.teamBScore || 0), Number(b.rivalScore || b.teamBScore || 0)),
         };
       });
-      if (b.type === '2v2' || b.battleType === '2v2' || b.teams?.[0]?.hosts?.length > 1 || b.teams?.[1]?.hosts?.length > 1) {
-        setBattleMode('2v2');
-      }
+      const hostsCount = (b.teams?.[0]?.hosts?.length || 0) + (b.teams?.[1]?.hosts?.length || 0);
+      const isAuto2v2 =
+        b.type === '2v2' ||
+        b.battleType === '2v2' ||
+        b.battleType === 2 ||
+        hostsCount > 2 ||
+        (b.participants?.length || 0) > 2;
+
+      setBattleMode(isAuto2v2 ? '2v2' : '1v1');
     };
 
     const onBattleUpdate = (b: any) => {
@@ -95,6 +108,10 @@ export function BattleArena({ onViewDetails }: BattleArenaProps) {
           rivalScore: Math.max(Number(prev.rivalScore || prev.teamBScore || 0), Number(b.rivalScore || b.teamBScore || 0)),
         };
       });
+
+      if (b.teams?.[0]?.hosts?.length > 1 || b.teams?.[1]?.hosts?.length > 1 || (b.participants?.length || 0) > 2) {
+        setBattleMode('2v2');
+      }
     };
 
     const onBattleEnd = (b: any) => {
@@ -335,13 +352,17 @@ export function BattleArena({ onViewDetails }: BattleArenaProps) {
             <Clock className="w-3.5 h-3.5" />
           </button>
 
-          {/* Mode Switcher */}
-          <div className="flex items-center bg-[#070A12] p-1 rounded-lg border border-white/[0.08] text-xs font-bold">
+          {/* Mode Switcher (Fully Automated from stream telemetry) */}
+          <div className="flex items-center bg-[#070A12] p-1 rounded-xl border border-white/[0.08] text-xs font-bold gap-1 shadow-inner">
+            <span className="text-[10px] text-cyan-400/90 font-mono px-2 py-0.5 rounded bg-cyan-950/40 border border-cyan-500/20 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              <span>تلقائي AUTO:</span>
+            </span>
             <button
               onClick={() => setBattleMode('1v1')}
-              className={`px-3 py-1 rounded-md transition-all flex items-center gap-1.5 font-bold ${
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 font-bold ${
                 battleMode === '1v1'
-                  ? 'bg-blue-600 text-white shadow-sm'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-1 ring-blue-400/50'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -350,9 +371,9 @@ export function BattleArena({ onViewDetails }: BattleArenaProps) {
             </button>
             <button
               onClick={() => setBattleMode('2v2')}
-              className={`px-3 py-1 rounded-md transition-all flex items-center gap-1.5 font-bold ${
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 font-bold ${
                 battleMode === '2v2'
-                  ? 'bg-indigo-600 text-white shadow-sm'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400/50'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
