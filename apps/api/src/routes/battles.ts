@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { getPrisma } from '@aep/database';
+import { resolveCanonicalBattleTeams } from '@aep/battle-intelligence';
 
 export const battlesRoutes: FastifyPluginAsync = async (fastify) => {
   const prisma = getPrisma();
@@ -9,126 +10,86 @@ export const battlesRoutes: FastifyPluginAsync = async (fastify) => {
     const latestArmies = b.events?.[0]?.payload as any;
     const eventTeams = latestArmies?.teams;
 
-    let teamAScore = 0;
-    let teamBScore = 0;
+    const streamer = b.session?.streamer;
+    const streamerUsername = streamer?.username || 'mohra.2000';
 
-    if (eventTeams) {
-      const tA = eventTeams.find((t: any) => t.teamId === 'TEAM_A');
-      const tB = eventTeams.find((t: any) => t.teamId === 'TEAM_B');
-      if (tA && tA.score !== undefined) teamAScore = Math.max(teamAScore, Number(tA.score));
-      if (tB && tB.score !== undefined) teamBScore = Math.max(teamBScore, Number(tB.score));
-    }
+    // Find streamer's user record in participants if present
+    const streamerParticipant = b.participants.find((p: any) =>
+      p.user?.uniqueId?.toLowerCase() === streamerUsername.toLowerCase()
+    );
+    const streamerUserId = streamerParticipant?.user?.userId || '';
 
-    const pSumA = b.participants.filter((p: any) => p.teamId === 'TEAM_A').reduce((s: number, p: any) => s + Number(p.score || 0), 0);
-    const pSumB = b.participants.filter((p: any) => p.teamId === 'TEAM_B').reduce((s: number, p: any) => s + Number(p.score || 0), 0);
-    if (teamAScore === 0 && pSumA > 0) teamAScore = pSumA;
-    if (teamBScore === 0 && pSumB > 0) teamBScore = pSumB;
+    // Collect all raw participants from DB participants
+    const rawParticipants = b.participants.map((p: any, idx: number) => ({
+      userId: p.user?.userId || p.userId || `part_${idx}`,
+      uniqueId: p.user?.uniqueId,
+      nickname: p.user?.nickname,
+      avatarUrl: p.user?.avatarUrl,
+      score: Number(p.score || 0),
+      sourceTeamId: p.teamId,
+      isCurrentHost: p.user?.uniqueId?.toLowerCase() === streamerUsername.toLowerCase(),
+      sourceIndex: idx,
+    }));
 
-    // 1. Resolve Team A Hosts (prioritize rich eventTeams if present, then participants, then streamer)
-    let teamAHosts: any[] = [];
-    const eventTeamA = eventTeams?.find((t: any) => t.teamId === 'TEAM_A');
-    if (eventTeamA?.hosts && eventTeamA.hosts.length > 0) {
-      teamAHosts = eventTeamA.hosts.map((h: any) => ({
-        userId: h.userId,
-        uniqueId: h.uniqueId || b.session?.streamer?.username || 'mohra.2000',
-        nickname: h.nickname || b.session?.streamer?.displayName || 'المهره',
-        avatarUrl: h.avatarUrl || b.session?.streamer?.profileImage || '',
-        score: Number(h.score || 0),
+    // If latestArmies has eventTeams, extract source team armies
+    let sourceTeamArmies: any = undefined;
+    if (latestArmies?.teams && Array.isArray(latestArmies.teams)) {
+      sourceTeamArmies = latestArmies.teams.map((t: any, idx: number) => ({
+        teamId: t.teamId || idx + 1,
+        teamUsers: (t.hosts || []).map((h: any) => ({
+          userIdStr: h.userId,
+          userId: h.userId,
+          score: Number(h.score || 0),
+        })),
+        totalScore: Number(t.score || 0),
       }));
-    } else {
-      const uniqueA = new Map<string, any>();
-      for (const p of b.participants.filter((p: any) => p.teamId === 'TEAM_A')) {
-        const uid = p.user?.userId || p.userId;
-        if (!uniqueA.has(uid)) {
-          uniqueA.set(uid, {
-            userId: uid,
-            uniqueId: p.user?.uniqueId || b.session?.streamer?.username || 'mohra.2000',
-            nickname: p.user?.nickname || b.session?.streamer?.displayName || 'المهره',
-            avatarUrl: p.user?.avatarUrl || b.session?.streamer?.profileImage || '',
-            score: Number(p.score || 0),
-          });
-        }
-      }
-      teamAHosts = Array.from(uniqueA.values());
     }
 
-    if (teamAHosts.length === 0) {
-      teamAHosts = [{
-        userId: b.session?.streamer?.id || 'mohra',
-        uniqueId: b.session?.streamer?.username || 'mohra.2000',
-        nickname: b.session?.streamer?.displayName || 'المهره 💛',
-        avatarUrl: b.session?.streamer?.profileImage || '',
-        score: teamAScore,
-      }];
-    }
+    const canonical = resolveCanonicalBattleTeams({
+      battleId: b.battleId,
+      sessionId: b.streamSessionId,
+      battleType: b.battleType as any,
+      trackedStreamer: {
+        userId: streamerUserId,
+        username: streamerUsername,
+        roomId: b.session?.roomId,
+      },
+      participants: rawParticipants,
+      sourceTeamArmies,
+      sourceTeamScores: {
+        team1Score: Number(eventTeams?.find((t: any) => t.teamId === 'TEAM_A')?.score || 0),
+        team2Score: Number(eventTeams?.find((t: any) => t.teamId === 'TEAM_B')?.score || 0),
+      },
+    });
 
-    // Ensure host 1 is cleanly labeled as the streamer
-    if (teamAHosts.length > 0 && b.session?.streamer) {
-      const s = b.session.streamer;
-      if (!teamAHosts[0].uniqueId || /^\d+$/.test(teamAHosts[0].uniqueId) || teamAHosts[0].uniqueId === 'host') {
-        teamAHosts[0].uniqueId = s.username;
-      }
-      if (!teamAHosts[0].nickname || /^\d+$/.test(teamAHosts[0].nickname) || teamAHosts[0].nickname === 'المضيف') {
-        teamAHosts[0].nickname = s.displayName || s.username;
-      }
-      if (!teamAHosts[0].avatarUrl && s.profileImage) {
-        teamAHosts[0].avatarUrl = s.profileImage;
-      }
-    }
+    const teamAScore = canonical.teamA.score;
+    const teamBScore = canonical.teamB.score;
 
-    // 2. Resolve Team B Hosts
-    let teamBHosts: any[] = [];
-    const eventTeamB = eventTeams?.find((t: any) => t.teamId === 'TEAM_B');
-    if (eventTeamB?.hosts && eventTeamB.hosts.length > 0) {
-      teamBHosts = eventTeamB.hosts.map((h: any) => ({
-        userId: h.userId,
-        uniqueId: h.uniqueId || 'rival',
-        nickname: h.nickname || h.uniqueId || 'المنافس',
-        avatarUrl: h.avatarUrl || '',
-        score: Number(h.score || 0),
-      }));
-    } else {
-      const uniqueB = new Map<string, any>();
-      for (const p of b.participants.filter((p: any) => p.teamId === 'TEAM_B')) {
-        const uid = p.user?.userId || p.userId;
-        if (!uniqueB.has(uid)) {
-          uniqueB.set(uid, {
-            userId: uid,
-            uniqueId: p.user?.uniqueId || 'rival',
-            nickname: p.user?.nickname || p.user?.uniqueId || 'المنافس',
-            avatarUrl: p.user?.avatarUrl || '',
-            score: Number(p.score || 0),
-          });
-        }
-      }
-      teamBHosts = Array.from(uniqueB.values());
-    }
+    // Team A Hosts: index 0 is guaranteed to be streamer, index 1 partner
+    const teamAHosts = canonical.teamA.hosts.map((h) => ({
+      userId: h.userId,
+      uniqueId: h.uniqueId,
+      nickname: h.nickname,
+      avatarUrl: h.avatarUrl || (h.uniqueId === streamerUsername ? streamer?.profileImage : ''),
+      score: h.score,
+      isHost: h.isHost,
+      isPartner: h.isPartner,
+    }));
 
-    // Deduplicate hosts in teamB
-    const dedupB = new Map<string, any>();
-    for (const h of teamBHosts) {
-      const k = h.userId || h.uniqueId;
-      if (!dedupB.has(k)) dedupB.set(k, h);
-    }
-    teamBHosts = Array.from(dedupB.values());
-
-    // If 4 hosts were present and only 1 was in Team A and 3 in Team B (and no authoritative eventTeams was available), the first host in Team B is the partner for Team A
-    if (!eventTeams && teamAHosts.length === 1 && teamBHosts.length === 3) {
-      teamAHosts.push(teamBHosts.shift()!);
-    }
-
-    // Monotonic score aggregation
-    const hostSumA = teamAHosts.reduce((s: number, h: any) => s + Number(h.score || 0), 0);
-    const hostSumB = teamBHosts.reduce((s: number, h: any) => s + Number(h.score || 0), 0);
-    teamAScore = Math.max(teamAScore, hostSumA);
-    teamBScore = Math.max(teamBScore, hostSumB);
-
-    const is2v2 = teamAHosts.length > 1 || teamBHosts.length > 1 || b.battleType === '2v2';
-    const computedBattleType = is2v2 ? '2v2' : '1v1';
+    // Team B Hosts: index 0 is primary rival, index 1 rival partner
+    const teamBHosts = canonical.teamB.hosts.map((h) => ({
+      userId: h.userId,
+      uniqueId: h.uniqueId,
+      nickname: h.nickname,
+      avatarUrl: h.avatarUrl,
+      score: h.score,
+      isHost: h.isHost,
+      isPartner: h.isPartner,
+    }));
 
     return {
       ...b,
-      battleType: computedBattleType,
+      battleType: canonical.battleType,
       teamAScore,
       teamBScore,
       hostScore: teamAScore,

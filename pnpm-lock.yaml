@@ -274,6 +274,9 @@ importers:
 
   packages/tiktok-connectors:
     dependencies:
+      '@aep/battle-intelligence':
+        specifier: workspace:*
+        version: link:../battle-intelligence
       '@aep/database':
         specifier: workspace:*
         version: link:../database

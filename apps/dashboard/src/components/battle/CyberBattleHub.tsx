@@ -329,8 +329,17 @@ export default function CyberBattleHub() {
     teamBHosts.length > 1 ||
     (battleData?.participants && battleData.participants.length >= 4);
 
-  // Host (Team A Primary)
-  const hostUser = teamAHosts[0] || {
+  // Host (Team A Primary) - deterministically identify primary tracked streamer
+  const streamerName = selectedStreamer?.username?.toLowerCase();
+  const streamerId = selectedStreamer?.id ? String(selectedStreamer.id) : null;
+  const foundHost = teamAHosts.find((h: any) =>
+    h.isHost === true ||
+    h.role === 'HOST' ||
+    (streamerName && h.uniqueId?.toLowerCase() === streamerName) ||
+    (streamerId && (String(h.userId) === streamerId || String(h.id) === streamerId))
+  ) || teamAHosts[0];
+
+  const hostUser = foundHost || {
     uniqueId: selectedStreamer?.username || 'mohra.2000',
     nickname: selectedStreamer?.displayName || 'المهره 💛',
     avatarUrl: selectedStreamer?.profileImage,
@@ -338,17 +347,18 @@ export default function CyberBattleHub() {
   const effectiveHostAvatar = hostUser.avatarUrl || selectedStreamer?.profileImage || '';
 
   // Host Teammate (Team A Secondary for 2v2)
-  const hostPartner = teamAHosts[1] || null;
+  const hostPartner = teamAHosts.find((h: any) => h !== foundHost) || (teamAHosts.length > 1 ? teamAHosts[1] : null);
 
   // Rival 1 (Team B Primary)
-  const rivalUser1 = teamBHosts[0] || {
+  const foundRival1 = teamBHosts.find((h: any) => h.isHost === true || h.role === 'HOST') || teamBHosts[0];
+  const rivalUser1 = foundRival1 || {
     uniqueId: battleData?.rivalUsername || 'rival',
     nickname: battleData?.rivalNickname || 'المنافس',
     avatarUrl: battleData?.rivalImage || '',
   };
 
   // Rival 2 (Team B Secondary for 2v2)
-  const rivalUser2 = teamBHosts[1] || null;
+  const rivalUser2 = teamBHosts.find((h: any) => h !== foundRival1) || (teamBHosts.length > 1 ? teamBHosts[1] : null);
 
   // Non-Compounding Authoritative Scores
   const hostScore = Number(battleData?.hostScore ?? battleData?.teamAScore ?? 0);

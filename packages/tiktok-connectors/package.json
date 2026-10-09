@@ -9,6 +9,7 @@
     "dev": "tsc -w"
   },
   "dependencies": {
+    "@aep/battle-intelligence": "workspace:*",
     "@aep/database": "workspace:*",
     "@aep/event-model": "workspace:*",
     "@aep/event-pipeline": "workspace:*",

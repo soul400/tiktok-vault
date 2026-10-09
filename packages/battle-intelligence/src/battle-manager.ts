@@ -23,7 +23,16 @@ export class BattleManager {
     startedAt: Date;
     teams: Array<{
       teamId: string;
-      hosts: Array<{ userId: string; uniqueId: string; nickname: string; avatarUrl?: string }>;
+      hosts: Array<{
+        userId: string;
+        uniqueId: string;
+        nickname: string;
+        avatarUrl?: string;
+        score?: number;
+        isHost?: boolean;
+        isPartner?: boolean;
+        role?: string;
+      }>;
     }>;
   }): Promise<BattleState> {
     this.logger.info(`Starting battle #${params.battleId} (${params.battleType})`);
@@ -60,10 +69,13 @@ export class BattleManager {
       },
     });
 
-    // Register host participants
+    // Register host & partner participants deterministically
     for (const team of params.teams) {
-      for (const host of team.hosts) {
+      for (let idx = 0; idx < team.hosts.length; idx++) {
+        const host = team.hosts[idx];
         if (!host.userId) continue;
+
+        const role = host.isPartner ? 'PARTNER' : (host.role || (idx > 0 ? 'PARTNER' : 'HOST'));
 
         // Upsert user first
         const user = await this.prisma.user.upsert({
@@ -95,13 +107,18 @@ export class BattleManager {
               battleSessionId: battleSession.id,
               userId: user.id,
               teamId: team.teamId,
-              role: 'HOST',
+              role,
+              score: BigInt(host.score || 0),
             },
           });
-        } else if (existingParticipant.teamId !== team.teamId) {
+        } else {
           await this.prisma.battleParticipant.update({
             where: { id: existingParticipant.id },
-            data: { teamId: team.teamId },
+            data: {
+              teamId: team.teamId,
+              role,
+              score: host.score !== undefined ? BigInt(host.score) : existingParticipant.score,
+            },
           });
         }
       }
@@ -147,18 +164,22 @@ export class BattleManager {
       const teamA = params.teams.find((t) => t.teamId === 'TEAM_A');
       const teamB = params.teams.find((t) => t.teamId === 'TEAM_B');
 
-      if (teamA && teamA.score !== undefined) {
-        await this.prisma.battleParticipant.updateMany({
-          where: { battleSessionId: dbBattle.id, teamId: 'TEAM_A', role: 'HOST' },
-          data: { score: BigInt(teamA.score) },
-        });
-      }
-
-      if (teamB && teamB.score !== undefined) {
-        await this.prisma.battleParticipant.updateMany({
-          where: { battleSessionId: dbBattle.id, teamId: 'TEAM_B', role: 'HOST' },
-          data: { score: BigInt(teamB.score) },
-        });
+      // Update individual host scores if available in team.hosts
+      for (const t of [teamA, teamB]) {
+        if (!t) continue;
+        const hostsList: any[] = (t as any).hosts || [];
+        for (const h of hostsList) {
+          if (!h.userId) continue;
+          const u = await this.prisma.user.findFirst({
+            where: { OR: [{ userId: h.userId }, { uniqueId: h.uniqueId }] },
+          });
+          if (u && h.score !== undefined) {
+            await this.prisma.battleParticipant.updateMany({
+              where: { battleSessionId: dbBattle.id, userId: u.id },
+              data: { score: BigInt(h.score) },
+            });
+          }
+        }
       }
 
       await this.prisma.battleEvent.create({

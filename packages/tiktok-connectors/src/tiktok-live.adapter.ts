@@ -13,6 +13,7 @@ import {
   BattleEndPayload,
   BattleParticipantSnapshot,
 } from '@aep/event-model';
+import { resolveCanonicalBattleTeams, CanonicalBattleAssignmentOutput } from '@aep/battle-intelligence';
 import { LikeAccumulator, GiftStreakTracker } from '@aep/event-pipeline';
 import { Logger } from '@aep/shared';
 import { ITikTokLiveConnector } from './adapter.interface.js';
@@ -59,6 +60,12 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
   private consecutiveStaleDetections = 0;
 
   private lastBattleScores = new Map<string, { teamAScore: number; teamBScore: number }>();
+  private canonicalBattleAssignments = new Map<string, CanonicalBattleAssignmentOutput>();
+  private streamerUserId?: string;
+
+  public setStreamerUserId(userId: string): void {
+    this.streamerUserId = userId;
+  }
 
   private currentBattleHosts?: {
     hostAnchorId?: string;
@@ -180,6 +187,15 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
       this._telemetry.lastHeartbeat = new Date().toISOString();
       this._telemetry.latencyMs = connectLatency;
       this.cachedRoomId = this._telemetry.roomId;
+      if (this.connection?.roomInfo?.owner) {
+        const owner = this.connection.roomInfo.owner;
+        const oId = String(owner.id_str || owner.id || '');
+        if (oId) this.streamerUserId = oId;
+      } else if (state?.roomInfo?.owner) {
+        const owner = state.roomInfo.owner;
+        const oId = String(owner.id_str || owner.id || '');
+        if (oId) this.streamerUserId = oId;
+      }
       this.lastEventReceivedAt = Date.now();
       this.consecutiveStaleDetections = 0;
       this.setState('CONNECTED');
@@ -618,182 +634,59 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
         });
       }
 
-      // Check if this is a 2vs2 battle (4 participants)
-      const is2v2 = data.battleType === 2 || parsedParticipants.length >= 4;
-      const teamAHosts: BattleParticipantSnapshot[] = [];
-      const teamBHosts: BattleParticipantSnapshot[] = [];
-      let hostAnchorId: string | undefined;
-      let rivalAnchorId: string | undefined;
-
-      // Extract explicit protobuf team structures if available
-      const teamAUserIds = new Set<string>();
-      const teamBUserIds = new Set<string>();
-
-      // 1. data.teamUsers: [{ teamId, userIds }]
-      if (Array.isArray(data.teamUsers) && data.teamUsers.length >= 2) {
-        const t1 = (data.teamUsers[0]?.userIds || []).map(String);
-        const t2 = (data.teamUsers[1]?.userIds || []).map(String);
-        const hostInT1 = t1.some(
-          (id: string) =>
-            id === this.streamerUsername ||
-            (this.roomId && id === this.roomId) ||
-            parsedParticipants.some((p) => p.isCurrentHost && (p.anchorId === id || p.participant.userId === id))
-        );
-        if (hostInT1) {
-          t1.forEach((id: string) => teamAUserIds.add(id));
-          t2.forEach((id: string) => teamBUserIds.add(id));
-        } else {
-          t2.forEach((id: string) => teamAUserIds.add(id));
-          t1.forEach((id: string) => teamBUserIds.add(id));
-        }
-      }
-
-      // 2. data.teamArmies: [{ teamId, teamUsers }]
-      if (teamAUserIds.size === 0 && Array.isArray(data.teamArmies) && data.teamArmies.length >= 2) {
-        const t1 = (data.teamArmies[0]?.teamUsers || []).map((u: any) => String(u.userIdStr || u.userId || ''));
-        const t2 = (data.teamArmies[1]?.teamUsers || []).map((u: any) => String(u.userIdStr || u.userId || ''));
-        const hostInT1 = t1.some(
-          (id: string) =>
-            id === this.streamerUsername ||
-            (this.roomId && id === this.roomId) ||
-            parsedParticipants.some((p) => p.isCurrentHost && (p.anchorId === id || p.participant.userId === id))
-        );
-        if (hostInT1) {
-          t1.forEach((id: string) => teamAUserIds.add(id));
-          t2.forEach((id: string) => teamBUserIds.add(id));
-        } else {
-          t2.forEach((id: string) => teamAUserIds.add(id));
-          t1.forEach((id: string) => teamBUserIds.add(id));
-        }
-      }
-
-      // 3. data.teamMatchCampaign.bestTeammateRelation
-      let bestTeammateId: string | undefined;
-      if (Array.isArray(data.teamMatchCampaign?.bestTeammateRelation)) {
-        const hostAnchor = parsedParticipants.find((p) => p.isCurrentHost);
-        const hostId = hostAnchor?.anchorId || hostAnchor?.participant.userId;
-        const rel = data.teamMatchCampaign.bestTeammateRelation.find(
-          (r: any) => String(r.userId) === hostId || String(r.bestTeammateId) === hostId
-        );
-        if (rel) {
-          bestTeammateId = String(rel.userId === hostId ? rel.bestTeammateId : rel.userId);
-        }
-      }
-
-      if (is2v2 && parsedParticipants.length >= 4) {
-        const hostIdx = parsedParticipants.findIndex((p) => p.isCurrentHost);
-        const effectiveHostIdx = hostIdx !== -1 ? hostIdx : 0;
-        parsedParticipants[effectiveHostIdx].isCurrentHost = true;
-        const hostItem = parsedParticipants[effectiveHostIdx];
-
-        let teamAPair: typeof parsedParticipants = [];
-        let teamBPair: typeof parsedParticipants = [];
-
-        // Strategy 1: Explicit bestTeammateRelation
-        if (bestTeammateId) {
-          const partnerIdx = parsedParticipants.findIndex(
-            (p, idx) => idx !== effectiveHostIdx && (p.anchorId === bestTeammateId || p.participant.userId === bestTeammateId)
-          );
-          if (partnerIdx !== -1) {
-            teamAPair = [hostItem, parsedParticipants[partnerIdx]];
-            teamBPair = parsedParticipants.filter((_, idx) => idx !== effectiveHostIdx && idx !== partnerIdx);
-          }
-        }
-
-        // Strategy 2: Explicit protobuf teamUsers / teamArmies
-        if (teamAPair.length === 0 && teamAUserIds.size > 0) {
-          const a = parsedParticipants.filter((p) => teamAUserIds.has(p.anchorId) || teamAUserIds.has(p.participant.userId));
-          const b = parsedParticipants.filter((p) => teamBUserIds.has(p.anchorId) || teamBUserIds.has(p.participant.userId));
-          if (a.length >= 2 && b.length >= 2) {
-            teamAPair = a.slice(0, 2);
-            teamBPair = b.slice(0, 2);
-          }
-        }
-
-        // Strategy 3: Explicit teamId / group on participants
-        if (teamAPair.length === 0) {
-          const explicitA = parsedParticipants.filter((p) => p.explicitTeam === 'TEAM_A' || p.isCurrentHost);
-          const explicitB = parsedParticipants.filter((p) => p.explicitTeam === 'TEAM_B' && !p.isCurrentHost);
-          if (explicitA.length === 2 && explicitB.length === 2) {
-            teamAPair = explicitA;
-            teamBPair = explicitB;
-          }
-        }
-
-        // Strategy 4: Authoritative TikTok LIVE 2v2 4-quadrant layout topology
-        // In TikTok LIVE 2v2 broadcast:
-        // Position 0 = Top-Left (Host)
-        // Position 1 = Top-Right (Rival 1)
-        // Position 2 = Bottom-Left (Host Partner - Teammate)
-        // Position 3 = Bottom-Right (Rival Partner - Teammate)
-        // Team A (Left column): Positions [0, 2] -> Host + Partner
-        // Team B (Right column): Positions [1, 3] -> Rival 1 + Rival 2
-        if (teamAPair.length === 0) {
-          const colLeft = [parsedParticipants[0], parsedParticipants[2]];
-          const colRight = [parsedParticipants[1], parsedParticipants[3]];
-
-          if (effectiveHostIdx === 0 || effectiveHostIdx === 2) {
-            teamAPair = effectiveHostIdx === 0 ? colLeft : [parsedParticipants[2], parsedParticipants[0]];
-            teamBPair = colRight;
-          } else {
-            teamAPair = effectiveHostIdx === 1 ? colRight : [parsedParticipants[3], parsedParticipants[1]];
-            teamBPair = colLeft;
-          }
-        }
-
-        // Populate teamAHosts and teamBHosts
-        for (const item of teamAPair) {
-          if (item) {
-            teamAHosts.push(item.participant);
-            if (item.isCurrentHost || !hostAnchorId) hostAnchorId = item.anchorId;
-          }
-        }
-        for (const item of teamBPair) {
-          if (item) {
-            teamBHosts.push(item.participant);
-            if (!rivalAnchorId) rivalAnchorId = item.anchorId;
-          }
-        }
-      } else {
-        // 1vs1 or fallback by explicit team / host matching
-        for (const item of parsedParticipants) {
-          if (item.isCurrentHost || item.explicitTeam === 'TEAM_A') {
-            teamAHosts.push(item.participant);
-            if (item.isCurrentHost || !hostAnchorId) hostAnchorId = item.anchorId;
-          } else if (item.explicitTeam === 'TEAM_B') {
-            teamBHosts.push(item.participant);
-            if (!rivalAnchorId) rivalAnchorId = item.anchorId;
-          } else {
-            if (teamAHosts.length === 0) {
-              teamAHosts.push(item.participant);
-              if (!hostAnchorId) hostAnchorId = item.anchorId;
-            } else {
-              teamBHosts.push(item.participant);
-              if (!rivalAnchorId) rivalAnchorId = item.anchorId;
-            }
-          }
-        }
-      }
-
-      if (teamAHosts.length === 0) {
-        teamAHosts.push(defaultHost);
-      }
-      if (teamBHosts.length === 0) {
-        teamBHosts.push({
-          userId: 'rival_1',
-          uniqueId: 'rival',
-          nickname: 'المنافس',
-          avatarUrl: '',
-        });
-      }
-
+      // Deterministically resolve Team A and Team B using the canonical engine
       const battleId = String(data.battleId || data.channelId || Date.now());
       const cachedScore = this.lastBattleScores.get(battleId) || { teamAScore: 0, teamBScore: 0 };
 
+      const canonical = resolveCanonicalBattleTeams({
+        battleId,
+        battleType: data.battleType === 2 || parsedParticipants.length >= 4 ? '2v2' : '1v1',
+        trackedStreamer: {
+          userId: this.streamerUserId,
+          username: this.streamerUsername,
+          roomId: this.cachedRoomId || this.roomId,
+        },
+        participants: parsedParticipants.map((p) => ({
+          userId: p.anchorId,
+          uniqueId: p.participant.uniqueId,
+          nickname: p.participant.nickname,
+          avatarUrl: p.participant.avatarUrl,
+          sourceTeamId: p.explicitTeam,
+          isCurrentHost: p.isCurrentHost,
+          sourceIndex: p.originalIndex,
+        })),
+        sourceTeamUsers: data.teamUsers,
+        sourceTeamArmies: data.teamArmies,
+        bestTeammateRelation: data.teamMatchCampaign?.bestTeammateRelation,
+        previousAssignment: this.canonicalBattleAssignments.get(battleId),
+        sourceTeamScores: {
+          team1Score: cachedScore.teamAScore,
+          team2Score: cachedScore.teamBScore,
+        },
+      });
+
+      this.canonicalBattleAssignments.set(battleId, canonical);
+
+      const teamAHosts: BattleParticipantSnapshot[] = canonical.teamA.hosts.map((h: any) => ({
+        userId: h.userId,
+        uniqueId: h.uniqueId,
+        nickname: h.nickname,
+        avatarUrl: h.avatarUrl,
+        score: h.score,
+      }));
+
+      const teamBHosts: BattleParticipantSnapshot[] = canonical.teamB.hosts.map((h: any) => ({
+        userId: h.userId,
+        uniqueId: h.uniqueId,
+        nickname: h.nickname,
+        avatarUrl: h.avatarUrl,
+        score: h.score,
+      }));
+
       this.currentBattleHosts = {
-        hostAnchorId,
-        hostInfo: teamAHosts[0],
-        rivalAnchorId,
+        hostAnchorId: teamAHosts[0]?.userId,
+        hostInfo: teamAHosts[0] || defaultHost,
+        rivalAnchorId: teamBHosts[0]?.userId,
         rivalInfo: teamBHosts[0],
         teamAHosts,
         teamBHosts,
@@ -802,16 +695,16 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
 
       const payload: BattleStartPayload = {
         battleId,
-        battleType: is2v2 || teamAHosts.length > 1 || teamBHosts.length > 1 ? '2v2' : '1v1',
+        battleType: canonical.battleType,
         teams: [
           {
             teamId: 'TEAM_A',
-            score: cachedScore.teamAScore,
+            score: canonical.teamA.score,
             hosts: teamAHosts,
           },
           {
             teamId: 'TEAM_B',
-            score: cachedScore.teamBScore,
+            score: canonical.teamB.score,
             hosts: teamBHosts,
           },
         ],
@@ -890,24 +783,14 @@ export class TikTokLiveConnectorAdapter implements ITikTokLiveConnector {
             const matchesTeamB =
               teamBHosts.some((h) => h.userId === armyAnchorId || (h.uniqueId && h.uniqueId === armyAnchorId));
 
-            let isTeamA = false;
             if (matchesTeamA) {
-              isTeamA = true;
-            } else if (matchesTeamB) {
-              isTeamA = false;
-            } else {
-              // Only fallback when ID is ambiguous: first entry is Team A only if teamA hosts are present and not already matched
-              isTeamA = idx === 0 && !teamBHosts.some((h) => h.userId === armyAnchorId);
-            }
-
-            if (isTeamA) {
               teamAHostsSum += score;
               if (parsedContributors.length > 0) {
                 teamAContributors = parsedContributors;
               }
               const matchedHost = teamAHosts.find((h) => h.userId === armyAnchorId || h.uniqueId === armyAnchorId);
               if (matchedHost) matchedHost.score = Math.max(Number(matchedHost.score || 0), score);
-            } else {
+            } else if (matchesTeamB) {
               teamBHostsSum += score;
               if (parsedContributors.length > 0) {
                 teamBContributors = parsedContributors;
