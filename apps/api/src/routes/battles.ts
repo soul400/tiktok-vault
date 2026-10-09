@@ -112,8 +112,8 @@ export const battlesRoutes: FastifyPluginAsync = async (fastify) => {
     }
     teamBHosts = Array.from(dedupB.values());
 
-    // If 4 hosts were present and 1 was in Team A and 3 in Team B, the first host in Team B is the partner for Team A
-    if (teamAHosts.length === 1 && teamBHosts.length === 3) {
+    // If 4 hosts were present and only 1 was in Team A and 3 in Team B (and no authoritative eventTeams was available), the first host in Team B is the partner for Team A
+    if (!eventTeams && teamAHosts.length === 1 && teamBHosts.length === 3) {
       teamAHosts.push(teamBHosts.shift()!);
     }
 

@@ -177,6 +177,38 @@ export default function CyberBattleHub() {
 
   // Aggregated scores & calculations
   const isLive = selectedStreamer?.status === 'LIVE';
+
+  const teamAData = battleData?.teams?.find((t: any) => t.teamId === 'TEAM_A');
+  const teamBData = battleData?.teams?.find((t: any) => t.teamId === 'TEAM_B');
+  const teamAHosts: any[] = teamAData?.hosts || [];
+  const teamBHosts: any[] = teamBData?.hosts || [];
+
+  const is2v2 =
+    battleData?.battleType === '2v2' ||
+    teamAHosts.length > 1 ||
+    teamBHosts.length > 1 ||
+    (battleData?.participants && battleData.participants.length >= 4);
+
+  // Host (Team A primary)
+  const hostUser = teamAHosts[0] || {
+    uniqueId: selectedStreamer?.username || 'mohra.2000',
+    nickname: selectedStreamer?.displayName || 'المهره 💛',
+    avatarUrl: selectedStreamer?.profileImage,
+  };
+
+  // Host Teammate (Team A secondary)
+  const hostPartner = teamAHosts[1] || null;
+
+  // Rival 1 (Team B primary)
+  const rivalUser1 = teamBHosts[0] || {
+    uniqueId: battleData?.rivalUsername || 'rival',
+    nickname: battleData?.rivalNickname || 'المنافس',
+    avatarUrl: battleData?.rivalImage || '',
+  };
+
+  // Rival 2 (Team B secondary)
+  const rivalUser2 = teamBHosts[1] || null;
+
   const hostScore = Number(battleData?.hostScore || battleData?.teamAScore || 22222);
   const rivalScore = Number(battleData?.rivalScore || battleData?.teamBScore || 459);
   const totalScore = hostScore + rivalScore || 1;
@@ -728,31 +760,69 @@ export default function CyberBattleHub() {
       <footer className="p-3 lg:px-6 border-t border-white/[0.08] bg-[#0c1220]/95 backdrop-blur-xl">
         <div className="max-w-[1920px] mx-auto flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-xs font-bold">
-            <span className="text-cyan-400 flex items-center gap-1.5 font-mono">
-              <span>VS Battle Gauge</span>
-              <span className="text-slate-400">({hostPercent}%)</span>
-              <span className="font-mono text-white text-sm">{hostScore.toLocaleString()}</span>
-            </span>
-            <span className="text-rose-400 flex items-center gap-1.5 font-mono">
-              <span className="font-mono text-white text-sm">{rivalScore.toLocaleString()}</span>
-              <span className="text-slate-400">({rivalPercent}%)</span>
-              <span>Rival Team</span>
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-cyan-400 flex items-center gap-1.5 font-mono">
+                <span>VS Battle Gauge</span>
+                <span className="text-slate-400">({hostPercent}%)</span>
+                <span className="font-mono text-white text-sm">{hostScore.toLocaleString()}</span>
+              </span>
+              {is2v2 && (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                  2v2 QUAD
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {is2v2 && (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  2v2 RIVALS
+                </span>
+              )}
+              <span className="text-rose-400 flex items-center gap-1.5 font-mono">
+                <span className="font-mono text-white text-sm">{rivalScore.toLocaleString()}</span>
+                <span className="text-slate-400">({rivalPercent}%)</span>
+                <span>Rival Team</span>
+              </span>
+            </div>
           </div>
 
           {/* Neon VS Battle Gauge */}
           <div className="flex items-center gap-3">
-            {/* Host Avatar (Left) */}
-            <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 p-0.5 ring-2 ring-cyan-400/80 shadow-lg shadow-cyan-500/40">
-                <div className="w-full h-full rounded-full bg-slate-900 overflow-hidden flex items-center justify-center text-sm">
-                  {selectedStreamer?.profileImage ? (
-                    <img src={selectedStreamer.profileImage} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    '🕶️'
-                  )}
+            {/* Team A (Host Team) Avatars (Left) */}
+            <div className="flex items-center -space-x-2 shrink-0">
+              {/* Host Avatar */}
+              <div className="relative group cursor-pointer" title={`@${hostUser.uniqueId} (${hostUser.nickname})`}>
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 p-0.5 ring-2 ring-cyan-400/80 shadow-lg shadow-cyan-500/40">
+                  <div className="w-full h-full rounded-full bg-slate-900 overflow-hidden flex items-center justify-center text-sm">
+                    {hostUser.avatarUrl ? (
+                      <img src={hostUser.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      '🕶️'
+                    )}
+                  </div>
                 </div>
+                <span className="absolute -bottom-1 -right-1 px-1 py-0.2 rounded-full text-[8px] font-black bg-blue-600 text-white border border-blue-400 leading-none">
+                  H
+                </span>
               </div>
+
+              {/* Host Partner Avatar (2v2) */}
+              {is2v2 && (
+                <div className="relative group cursor-pointer" title={hostPartner ? `@${hostPartner.uniqueId} (${hostPartner.nickname})` : 'شريك المضيف'}>
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 p-0.5 ring-2 ring-blue-400/70 shadow-md shadow-blue-500/30">
+                    <div className="w-full h-full rounded-full bg-slate-900 overflow-hidden flex items-center justify-center text-xs">
+                      {hostPartner?.avatarUrl ? (
+                        <img src={hostPartner.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        '👤'
+                      )}
+                    </div>
+                  </div>
+                  <span className="absolute -bottom-1 -right-1 px-1 py-0.2 rounded-full text-[8px] font-black bg-indigo-600 text-white border border-indigo-400 leading-none">
+                    P
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Blue Side Progress */}
@@ -776,16 +846,40 @@ export default function CyberBattleHub() {
               />
             </div>
 
-            {/* Rival Avatar (Right) */}
-            <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-rose-500 to-red-600 p-0.5 ring-2 ring-rose-400/80 shadow-lg shadow-rose-500/40">
-                <div className="w-full h-full rounded-full bg-slate-900 overflow-hidden flex items-center justify-center text-sm">
-                  {battleData?.rivalImage ? (
-                    <img src={battleData.rivalImage} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    '👤'
-                  )}
+            {/* Team B (Rival Team) Avatars (Right) */}
+            <div className="flex items-center -space-x-2 shrink-0">
+              {/* Rival Partner Avatar (2v2) */}
+              {is2v2 && (
+                <div className="relative group cursor-pointer" title={rivalUser2 ? `@${rivalUser2.uniqueId} (${rivalUser2.nickname})` : 'شريك الخصم'}>
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-500 to-rose-600 p-0.5 ring-2 ring-purple-400/70 shadow-md shadow-purple-500/30">
+                    <div className="w-full h-full rounded-full bg-slate-900 overflow-hidden flex items-center justify-center text-xs">
+                      {rivalUser2?.avatarUrl ? (
+                        <img src={rivalUser2.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        '👤'
+                      )}
+                    </div>
+                  </div>
+                  <span className="absolute -bottom-1 -left-1 px-1 py-0.2 rounded-full text-[8px] font-black bg-purple-600 text-white border border-purple-400 leading-none">
+                    P
+                  </span>
                 </div>
+              )}
+
+              {/* Rival 1 Avatar */}
+              <div className="relative group cursor-pointer" title={`@${rivalUser1.uniqueId} (${rivalUser1.nickname})`}>
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-rose-500 to-red-600 p-0.5 ring-2 ring-rose-400/80 shadow-lg shadow-rose-500/40">
+                  <div className="w-full h-full rounded-full bg-slate-900 overflow-hidden flex items-center justify-center text-sm">
+                    {rivalUser1.avatarUrl ? (
+                      <img src={rivalUser1.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      '👤'
+                    )}
+                  </div>
+                </div>
+                <span className="absolute -bottom-1 -left-1 px-1 py-0.2 rounded-full text-[8px] font-black bg-rose-600 text-white border border-rose-400 leading-none">
+                  R
+                </span>
               </div>
             </div>
           </div>
