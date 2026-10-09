@@ -24,8 +24,17 @@ export function getSocket(): Socket {
   }
 
   if (!socket) {
-    const activeTunnel = 'https://each-vendor-provides-fax.trycloudflare.com';
-    const apiUrl = activeTunnel || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    let apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (!apiUrl && typeof window !== 'undefined') {
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        apiUrl = `http://${window.location.hostname}:4000`;
+      } else {
+        apiUrl = 'https://edgar-page-summit-poker.trycloudflare.com';
+      }
+    }
+    if (!apiUrl) {
+      apiUrl = 'http://localhost:4000';
+    }
     socket = io(apiUrl, {
       transports: ['websocket'],      // WebSocket only — no polling fallback
       reconnection: true,             // Auto-reconnect on disconnect

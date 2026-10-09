@@ -2,8 +2,7 @@
 const nextConfig = {
   transpilePackages: ['@aep/shared', '@aep/event-model'],
   async rewrites() {
-    const activeTunnel = 'https://each-vendor-provides-fax.trycloudflare.com';
-    const apiUrl = activeTunnel || process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const apiUrl = process.env.INTERNAL_BACKEND_URL || process.env.BACKEND_API_URL || 'http://127.0.0.1:4000';
     return [
       {
         source: '/api/:path*',

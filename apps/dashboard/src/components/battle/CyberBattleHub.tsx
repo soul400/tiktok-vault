@@ -92,11 +92,17 @@ export default function CyberBattleHub() {
     try {
       const res = await fetch('/api/streamers');
       const data = await res.json();
-      if (data.success && data.data) {
+      if (data.success && data.data && data.data.length > 0) {
         useStreamStore.getState().setStreamers(data.data);
         const currentSelected = useStreamStore.getState().selectedStreamer;
-        if (!currentSelected && data.data.length > 0) {
-          useStreamStore.getState().setSelectedStreamer(data.data[0]);
+        const matchingStreamer = data.data.find(
+          (s: any) =>
+            s.id === currentSelected?.id ||
+            s.username?.toLowerCase() === currentSelected?.username?.toLowerCase()
+        ) || data.data[0];
+
+        if (matchingStreamer) {
+          useStreamStore.getState().setSelectedStreamer(matchingStreamer);
         }
       }
     } catch (err) {}
@@ -215,12 +221,20 @@ export default function CyberBattleHub() {
     if (sId) socket.emit('join:stream', sId);
 
     const onConnect = () => {
+      loadStreamers();
       loadVault();
       loadBattle();
     };
 
     const onBattleStart = (b: any) => {
       setBattleData(b);
+      // Battle in progress confirms streamer is actively live
+      if (selectedStreamer && selectedStreamer.status !== 'LIVE') {
+        useStreamStore.getState().setSelectedStreamer({
+          ...selectedStreamer,
+          status: 'LIVE',
+        });
+      }
     };
 
     const onBattleUpdate = (b: any) => {

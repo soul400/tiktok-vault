@@ -65,8 +65,16 @@ export function StreamerSidebar() {
     try {
       const res = await fetch('/api/streamers');
       const data = await res.json();
-      if (data.success) {
+      if (data.success && data.data) {
         setStreamers(data.data);
+        const current = selectedStreamer;
+        const matching =
+          data.data.find(
+            (s: any) =>
+              s.id === current?.id ||
+              s.username?.toLowerCase() === current?.username?.toLowerCase()
+          ) || data.data[0];
+        if (matching) setSelectedStreamer(matching);
       }
     } catch (err) {}
   };
